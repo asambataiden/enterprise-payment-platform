@@ -3,8 +3,6 @@ package dev.asambataiden.payment.payments.application;
 import dev.asambataiden.payment.payments.infrastructure.persistence.Payment;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentRepository;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentJdbcWriter;
-import dev.asambataiden.payment.payments.api.dto.PaymentResponse;
-import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -23,8 +21,8 @@ class PaymentServiceTest {
         Payment saved = new Payment("test-key", new BigDecimal("10.00"), "EUR", "order-123");
         when(repository.findByIdempotencyKey("test-key")).thenReturn(Optional.of(saved));
 
-        PaymentResponse result = service.create("test-key",
-                new CreatePaymentRequest(new BigDecimal("10.00"), "EUR", "order-123"));
+        PaymentResult result = service.create("test-key",
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-123"));
 
         assertEquals(saved.getId(), result.id());
         verify(writer).insertIfAbsent(any(Payment.class));
@@ -37,7 +35,7 @@ class PaymentServiceTest {
         when(repository.findByIdempotencyKey("test-key")).thenReturn(Optional.of(saved));
 
         assertThrows(ResponseStatusException.class, () -> service.create("test-key",
-                new CreatePaymentRequest(new BigDecimal("15.00"), "EUR", "order-123")));
+                new CreatePaymentCommand(new BigDecimal("15.00"), "EUR", "order-123")));
     }
 
     @Test
@@ -46,7 +44,7 @@ class PaymentServiceTest {
                 Optional.of(new Payment("fresh", new BigDecimal("10.00"), "EUR", "order-123")));
 
         var response = service.create("fresh",
-                new CreatePaymentRequest(new BigDecimal("10.00"), "EUR", "order-123"));
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-123"));
 
         assertEquals("RECEIVED", response.status());
         verify(writer).insertIfAbsent(any(Payment.class));
