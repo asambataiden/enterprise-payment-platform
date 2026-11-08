@@ -146,8 +146,8 @@ class SimulatedLedgerServiceIT {
     void databaseRejectsJournalWithoutAnyPostingsOnCommit() {
         UUID entryId = UUID.randomUUID();
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        assertSqlState("23514", () -> tx.executeWithoutResult(status ->
-                jdbc.update("""
+        assertSqlState("23514", () -> tx.executeWithoutResult(status -> {
+            jdbc.update("""
                     INSERT INTO ledger_entries (id, merchant_id, payment_id, event_id, currency)
                     VALUES (?, ?, ?, ?, 'EUR')
                     """, entryId, "ledger-a", payment("ledger-a"), UUID.randomUUID());
