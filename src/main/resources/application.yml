@@ -20,8 +20,11 @@ management:
     health:
       show-details: never
 
-# Include request correlation in human-readable local logs.
-# JSON log formatting for deployed environments will be configured separately.
+# Use Spring Boot's built-in ECS JSON encoder (no extra logging libraries).
+# Set LOG_CONSOLE_FORMAT to a supported format (ecs, logstash or gelf)
+# for deployment-specific ingestion requirements.
+# Every MDC correlationId is included automatically in the JSON event.
 logging:
-  pattern:
-    level: "%5p [correlationId:%X{correlationId:-none}]"
+  structured:
+    format:
+      console: ${LOG_CONSOLE_FORMAT:ecs}
