@@ -46,6 +46,11 @@ public class SimulatedLedgerService {
                     VALUES (?, ?, ?, ?, ?)
                     """, entry.entryId(), line++, posting.accountId(), posting.side().name(), posting.amount());
         }
+        // Finalize in the same transaction. PostgreSQL rejects further postings.
+        if (jdbc.update("UPDATE ledger_entries SET finalized = TRUE WHERE id = ? AND finalized = FALSE",
+                entry.entryId()) != 1) {
+            throw new IllegalStateException("Unable to finalize simulated journal");
+        }
     }
 
     @Transactional(readOnly = true)
