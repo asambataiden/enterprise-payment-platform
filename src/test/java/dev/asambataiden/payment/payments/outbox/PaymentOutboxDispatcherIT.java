@@ -112,14 +112,14 @@ class PaymentOutboxDispatcherIT {
                 "AUTHORIZED");
         var inbox = new PaymentInbox(jdbc);
         var tx = new TransactionTemplate(manager);
-        assertTrue(tx.execute(s -> inbox.register("example-consumer", envelope)));
-        assertFalse(tx.execute(s -> inbox.register("example-consumer", envelope)));
-        assertTrue(tx.execute(s -> inbox.register("independent-consumer", envelope)));
+        assertTrue(Boolean.TRUE.equals(tx.execute(s -> inbox.register("example-consumer", envelope))));
+        assertFalse(Boolean.TRUE.equals(tx.execute(s -> inbox.register("example-consumer", envelope))));
+        assertTrue(Boolean.TRUE.equals(tx.execute(s -> inbox.register("independent-consumer", envelope))));
         assertThrows(IllegalStateException.class, () -> tx.executeWithoutResult(s -> {
             assertTrue(inbox.register("rolled-back-consumer", envelope));
             throw new IllegalStateException("local effect failed");
         }));
-        assertTrue(tx.execute(s -> inbox.register("rolled-back-consumer", envelope)));
+        assertTrue(Boolean.TRUE.equals(tx.execute(s -> inbox.register("rolled-back-consumer", envelope))));
     }
 
     @Test
