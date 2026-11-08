@@ -12,7 +12,7 @@ public interface PaymentStore {
      * Attempts an atomic insert, then returns the row associated with the key.
      * The implementation must use the caller's transaction.
      */
-    PaymentResult insertIfAbsentAndFind(String idempotencyKey, CreatePaymentCommand command);
+    PaymentResult insertIfAbsentAndFind(String merchantId, String idempotencyKey, CreatePaymentCommand command);
 
-    Optional<PaymentResult> findById(UUID paymentId);
+    Optional<PaymentResult> findByMerchantIdAndId(String merchantId, UUID paymentId);
 }
