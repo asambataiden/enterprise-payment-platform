@@ -5,14 +5,14 @@ ALTER TABLE payments ADD CONSTRAINT chk_payments_simulated_status
     CHECK (status IN ('RECEIVED', 'AUTHORIZED', 'CAPTURED', 'FAILED', 'CANCELLED', 'REFUNDED'));
 
 CREATE TABLE payment_outbox (
-    id UUID PRIMARY KEY,
+    id UUID NOT NULL,
     merchant_id VARCHAR(128) NOT NULL,
     payment_id UUID NOT NULL,
     target_state VARCHAR(20) NOT NULL
         CHECK (target_state IN ('AUTHORIZED', 'CAPTURED', 'FAILED', 'CANCELLED', 'REFUNDED')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     dispatched_at TIMESTAMPTZ,
-    CONSTRAINT uq_payment_outbox_merchant_event UNIQUE (merchant_id, id),
+    CONSTRAINT pk_payment_outbox PRIMARY KEY (merchant_id, id),
     CONSTRAINT fk_payment_outbox_payment_owner FOREIGN KEY (merchant_id, payment_id)
         REFERENCES payments (merchant_id, id)
 );
