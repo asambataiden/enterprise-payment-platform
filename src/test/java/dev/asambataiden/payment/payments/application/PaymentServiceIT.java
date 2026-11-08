@@ -2,7 +2,6 @@
 package dev.asambataiden.payment.payments.application;
 
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentRepository;
-import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -44,7 +43,7 @@ class PaymentServiceIT {
     void createsAndRetrievesPersistedPayment() {
         String key = "integration-" + UUID.randomUUID();
 
-        var request = new CreatePaymentRequest(
+        var request = new CreatePaymentCommand(
             new BigDecimal("49.99"),
             "EUR",
             "order-integration"
@@ -64,7 +63,7 @@ class PaymentServiceIT {
     void repeatedRequestDoesNotCreateDuplicate() {
         String key = "retry-" + UUID.randomUUID();
 
-        var request = new CreatePaymentRequest(
+        var request = new CreatePaymentCommand(
             new BigDecimal("10.00"),
             "EUR",
             "order-retry"
@@ -84,7 +83,7 @@ class PaymentServiceIT {
     void changedPayloadWithSameKeyIsRejected() {
         String key = "conflict-" + UUID.randomUUID();
 
-        service.create(key, new CreatePaymentRequest(
+        service.create(key, new CreatePaymentCommand(
             new BigDecimal("10.00"),
             "EUR",
             "order-conflict"
@@ -92,7 +91,7 @@ class PaymentServiceIT {
 
         assertThrows(ResponseStatusException.class,
             () -> service.create(key,
-                new CreatePaymentRequest(
+                new CreatePaymentCommand(
                     new BigDecimal("20.00"),
                     "EUR",
                     "order-conflict"
@@ -104,7 +103,7 @@ class PaymentServiceIT {
         // Repeat with independent keys to exercise real concurrent transactions.
         for (int round = 0; round < 5; round++) {
             String key = "concurrent-" + UUID.randomUUID();
-            var request = new CreatePaymentRequest(
+            var request = new CreatePaymentCommand(
                     new BigDecimal("29.99"), "EUR", "order-concurrent");
             var start = new CountDownLatch(1);
             var executor = Executors.newFixedThreadPool(2);
