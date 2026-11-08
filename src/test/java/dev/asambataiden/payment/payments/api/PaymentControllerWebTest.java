@@ -2,6 +2,7 @@ package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
 import dev.asambataiden.payment.shared.observability.CorrelationIdFilter;
+import dev.asambataiden.payment.shared.security.PaymentSecurityConfig;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,6 +10,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.context.support.WithAnonymousUser;
 import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 
@@ -19,7 +23,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(PaymentController.class)
-@Import(CorrelationIdFilter.class)
+@Import({CorrelationIdFilter.class, PaymentSecurityConfig.class})
+@WithMockUser(authorities = {"SCOPE_payments:read", "SCOPE_payments:write"})
 class PaymentControllerWebTest {
 
     @Autowired
@@ -27,6 +32,9 @@ class PaymentControllerWebTest {
 
     @MockitoBean
     private PaymentService service;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void responseIncludesServerGeneratedCorrelationId() throws Exception {
@@ -97,5 +105,53 @@ class PaymentControllerWebTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    @WithAnonymousUser
+    void unauthenticatedReadIsRejectedBeforeServiceInvocation() throws Exception {
+        mvc.perform(get("/api/v1/payments/{id}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void unauthenticatedCreateIsRejectedBeforeServiceInvocation() throws Exception {
+        mvc.perform(post("/api/v1/payments")
+                        .header("Idempotency-Key", "anonymous")
+                        .contentType("application/json")
+                        .content("""
+                                {"amount":10.00,"currency":"EUR","merchantReference":"order-123"}
+                                """))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    @WithMockUser(authorities = "SCOPE_payments:read")
+    void readScopeCannotCreatePayments() throws Exception {
+        mvc.perform(post("/api/v1/payments")
+                        .header("Idempotency-Key", "read-only")
+                        .contentType("application/json")
+                        .content("""
+                                {"amount":10.00,"currency":"EUR","merchantReference":"order-123"}
+                                """))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    @WithMockUser(authorities = "SCOPE_payments:write")
+    void writeScopeCannotReadPayments() throws Exception {
+        mvc.perform(get("/api/v1/payments/{id}", UUID.randomUUID()))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    @WithAnonymousUser
+    void unlistedApplicationRouteIsDenied() throws Exception {
+        mvc.perform(get("/actuator/info")).andExpect(status().isForbidden());
     }
 }
