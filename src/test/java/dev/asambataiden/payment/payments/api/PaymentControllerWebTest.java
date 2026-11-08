@@ -6,11 +6,11 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.http.HttpStatus;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.server.ResponseStatusException;
+import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -32,7 +32,7 @@ class PaymentControllerWebTest {
     void responseIncludesServerGeneratedCorrelationId() throws Exception {
         UUID missingId = UUID.randomUUID();
         when(service.get(missingId))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+                .thenThrow(new PaymentNotFoundException(missingId));
 
         mvc.perform(get("/api/v1/payments/{id}", missingId)
                         .header(CorrelationIdFilter.HEADER_NAME, "untrusted-value"))
@@ -49,7 +49,7 @@ class PaymentControllerWebTest {
     void unknownPaymentReturnsProblemDetails() throws Exception {
         UUID missingId = UUID.randomUUID();
         when(service.get(missingId))
-                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+                .thenThrow(new PaymentNotFoundException(missingId));
 
         mvc.perform(get("/api/v1/payments/{id}", missingId))
                 .andExpect(status().isNotFound())
@@ -62,8 +62,7 @@ class PaymentControllerWebTest {
     @Test
     void conflictingIdempotencyKeyReturnsProblemDetails() throws Exception {
         when(service.create(eq("already-used"), org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new ResponseStatusException(
-                        HttpStatus.CONFLICT, "Idempotency key already used with different request"));
+                .thenThrow(new IdempotencyConflictException());
 
         mvc.perform(post("/api/v1/payments")
                         .header("Idempotency-Key", "already-used")
