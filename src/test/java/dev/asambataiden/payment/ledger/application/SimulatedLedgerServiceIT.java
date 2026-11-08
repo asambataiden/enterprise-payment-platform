@@ -136,6 +136,7 @@ class SimulatedLedgerServiceIT {
                     INSERT INTO ledger_postings (entry_id, line_number, account_id, side, amount)
                     VALUES (?, 1, 'asset', 'DEBIT', 10.00), (?, 2, 'liability', 'CREDIT', 9.99)
                     """, entryId, entryId);
+            jdbc.update("UPDATE ledger_entries SET finalized = TRUE WHERE id = ?", entryId);
         }));
         assertEquals(Long.valueOf(0), jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries WHERE id = ?", Long.class, entryId));
@@ -149,10 +150,28 @@ class SimulatedLedgerServiceIT {
                 jdbc.update("""
                     INSERT INTO ledger_entries (id, merchant_id, payment_id, event_id, currency)
                     VALUES (?, ?, ?, ?, 'EUR')
-                    """, entryId, "ledger-a", payment("ledger-a"), UUID.randomUUID())));
+                    """, entryId, "ledger-a", payment("ledger-a"), UUID.randomUUID());
+            jdbc.update("UPDATE ledger_entries SET finalized = TRUE WHERE id = ?", entryId);
+        }));
         assertEquals(Long.valueOf(0), jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries WHERE id = ?", Long.class, entryId));
     }
+
+    @Test
+    void finalizedJournalRejectsLatePostingsAndReFinalization() {
+        JournalEntry entry = journal("ledger-a", payment("ledger-a"));
+        ledger.append(UUID.randomUUID(), entry);
+
+        assertSqlState("P0001", () -> jdbc.update("""
+                INSERT INTO ledger_postings (entry_id, line_number, account_id, side, amount)
+                VALUES (?, 3, 'another-account', 'DEBIT', 1.00)
+                """, entry.entryId()));
+        assertSqlState("P0001", () -> jdbc.update(
+                "UPDATE ledger_entries SET finalized = TRUE WHERE id = ?", entry.entryId()));
+        assertEquals(Long.valueOf(2), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ledger_postings WHERE entry_id = ?", Long.class, entry.entryId()));
+    }
+
     private static void assertSqlState(String expectedSqlState, Executable operation) {
         RuntimeException thrown = assertThrows(RuntimeException.class, operation);
         Throwable cause = thrown;
