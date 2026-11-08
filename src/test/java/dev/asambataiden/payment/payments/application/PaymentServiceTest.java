@@ -26,9 +26,9 @@ class PaymentServiceTest {
     void repeatedRequestReturnsExistingPayment() {
         var command = new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-123");
         var stored = payment(new BigDecimal("10.00"));
-        when(store.insertIfAbsentAndFind("test-key", command)).thenReturn(stored);
+        when(store.insertIfAbsentAndFind("merchant-a", "test-key", command)).thenReturn(stored);
 
-        var actual = service.create("test-key", command);
+        var actual = service.create("merchant-a", "test-key", command);
 
         assertEquals(stored.id(), actual.id());
         verify(store).insertIfAbsentAndFind("test-key", command);
@@ -37,20 +37,20 @@ class PaymentServiceTest {
     @Test
     void reuseWithDifferentPayloadIsConflict() {
         var command = new CreatePaymentCommand(new BigDecimal("15.00"), "EUR", "order-123");
-        when(store.insertIfAbsentAndFind("test-key", command))
+        when(store.insertIfAbsentAndFind("merchant-a", "test-key", command))
                 .thenReturn(payment(new BigDecimal("10.00")));
 
         assertThrows(IdempotencyConflictException.class,
-                () -> service.create("test-key", command));
+                () -> service.create("merchant-a", "test-key", command));
     }
 
     @Test
     void newRequestCreatesReceivedRecord() {
         var command = new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-123");
-        when(store.insertIfAbsentAndFind("fresh", command))
+        when(store.insertIfAbsentAndFind("merchant-a", "fresh", command))
                 .thenReturn(payment(new BigDecimal("10.00")));
 
-        var result = service.create("fresh", command);
+        var result = service.create("merchant-a", "fresh", command);
 
         assertEquals("RECEIVED", result.status());
         verify(store).insertIfAbsentAndFind("fresh", command);
@@ -59,37 +59,37 @@ class PaymentServiceTest {
     @Test
     void unknownPaymentThrowsDomainException() {
         UUID id = UUID.randomUUID();
-        when(store.findById(id)).thenReturn(Optional.empty());
+        when(store.findByMerchantIdAndId("merchant-a", id)).thenReturn(Optional.empty());
 
-        assertThrows(PaymentNotFoundException.class, () -> service.get(id));
+        assertThrows(PaymentNotFoundException.class, () -> service.get("merchant-a", id));
     }
 
     @Test
     void reusedKeyWithDifferentCurrencyIsRejected() {
         var command = new CreatePaymentCommand(new BigDecimal("10.00"), "USD", "order-123");
-        when(store.insertIfAbsentAndFind("same-key", command))
+        when(store.insertIfAbsentAndFind("merchant-a", "same-key", command))
                 .thenReturn(payment(new BigDecimal("10.00")));
 
         assertThrows(IdempotencyConflictException.class,
-                () -> service.create("same-key", command));
+                () -> service.create("merchant-a", "same-key", command));
     }
 
     @Test
     void reusedKeyWithDifferentMerchantReferenceIsRejected() {
         var command = new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-changed");
-        when(store.insertIfAbsentAndFind("same-key", command))
+        when(store.insertIfAbsentAndFind("merchant-a", "same-key", command))
                 .thenReturn(payment(new BigDecimal("10.00")));
 
         assertThrows(IdempotencyConflictException.class,
-                () -> service.create("same-key", command));
+                () -> service.create("merchant-a", "same-key", command));
     }
 
     @Test
     void equivalentDecimalAmountsRemainIdempotent() {
         var command = new CreatePaymentCommand(new BigDecimal("10.0"), "EUR", "order-123");
         var stored = payment(new BigDecimal("10.00"));
-        when(store.insertIfAbsentAndFind("same-key", command)).thenReturn(stored);
+        when(store.insertIfAbsentAndFind("merchant-a", "same-key", command)).thenReturn(stored);
 
-        assertEquals(stored.id(), service.create("same-key", command).id());
+        assertEquals(stored.id(), service.create("merchant-a", "same-key", command).id());
     }
 }
