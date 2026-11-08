@@ -19,23 +19,31 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  filesystem-security:
-    name: Trivy | Vulnerabilities and secrets
+  dependency-scan:
+    name: Trivy | Packaged Java dependencies
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: read
     steps:
       - name: Check out source
         uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Reject high and critical dependency vulnerabilities
+      - name: Set up Java 25 and Maven dependency cache
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Package application and all runtime dependencies
+        run: mvn --batch-mode --no-transfer-progress -DskipTests package
+
+      - name: Reject high and critical vulnerabilities in packaged application
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
-          scan-ref: .
+          scan-ref: target/enterprise-payment-platform-0.1.0-SNAPSHOT.jar
           scanners: vuln
           format: table
           severity: HIGH,CRITICAL
@@ -43,7 +51,17 @@ jobs:
           ignore-unfixed: false
           version: v0.74.0
 
-      - name: Reject secrets in checked-out files
+  secret-scan:
+    name: Trivy | Source secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Reject secrets in checked-out source
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
@@ -51,4 +69,4 @@ jobs:
           scanners: secret
           format: table
           exit-code: '1'
-          skip-setup-trivy: true
+          version: v0.74.0
