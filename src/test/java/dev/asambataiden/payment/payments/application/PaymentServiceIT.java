@@ -12,6 +12,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
@@ -29,6 +31,9 @@ class PaymentServiceIT {
     @ServiceConnection
     static final PostgreSQLContainer postgres =
         new PostgreSQLContainer("postgres:17-alpine");
+
+    @MockitoBean
+    JwtDecoder jwtDecoder;
 
     @Autowired
     PaymentService service;
