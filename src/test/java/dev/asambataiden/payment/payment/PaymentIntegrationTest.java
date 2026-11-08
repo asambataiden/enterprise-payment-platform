@@ -3,6 +3,10 @@ package dev.asambataiden.payment.payment;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +33,9 @@ class PaymentIntegrationTest {
 
     @Autowired
     PaymentRepository repository;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @Test
     void createsAndRetrievesPersistedPayment() {
@@ -87,5 +94,38 @@ class PaymentIntegrationTest {
                     "EUR",
                     "order-conflict"
                 )));
+    }
+
+    @Test
+    void concurrentIdenticalRequestsProduceOnePayment() throws Exception {
+        // Repeat with independent keys to exercise real concurrent transactions.
+        for (int round = 0; round < 5; round++) {
+            String key = "concurrent-" + UUID.randomUUID();
+            var request = new CreatePaymentRequest(
+                    new BigDecimal("29.99"), "EUR", "order-concurrent");
+            var start = new CountDownLatch(1);
+            var executor = Executors.newFixedThreadPool(2);
+            try {
+                var first = executor.submit(() -> {
+                    start.await();
+                    return service.create(key, request).id();
+                });
+                var second = executor.submit(() -> {
+                    start.await();
+                    return service.create(key, request).id();
+                });
+                start.countDown();
+                UUID firstId = first.get(15, TimeUnit.SECONDS);
+                UUID secondId = second.get(15, TimeUnit.SECONDS);
+
+                assertEquals(firstId, secondId, "Concurrent retries must resolve to the same payment");
+                Long count = jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                        Long.class, key);
+                assertEquals(1L, count);
+            } finally {
+                executor.shutdownNow();
+            }
+        }
     }
 }
