@@ -37,11 +37,11 @@ class PaymentControllerWebTest {
     @Test
     void responseIncludesServerGeneratedCorrelationId() throws Exception {
         UUID missingId = UUID.randomUUID();
-        when(service.get(missingId))
+        when(service.get("merchant-a", missingId))
                 .thenThrow(new PaymentNotFoundException(missingId));
 
         mvc.perform(get("/api/v1/payments/{id}", missingId)
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read")))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read")))
                         .header(CorrelationIdFilter.HEADER_NAME, "untrusted-value"))
                 .andExpect(status().isNotFound())
                 .andExpect(header().exists(CorrelationIdFilter.HEADER_NAME))
@@ -55,11 +55,11 @@ class PaymentControllerWebTest {
     @Test
     void unknownPaymentReturnsProblemDetails() throws Exception {
         UUID missingId = UUID.randomUUID();
-        when(service.get(missingId))
+        when(service.get("merchant-a", missingId))
                 .thenThrow(new PaymentNotFoundException(missingId));
 
         mvc.perform(get("/api/v1/payments/{id}", missingId)
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read"))))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read"))))
                 .andExpect(status().isNotFound())
                 .andExpect(header().string("Content-Type",
                         org.hamcrest.Matchers.startsWith("application/problem+json")))
@@ -69,11 +69,11 @@ class PaymentControllerWebTest {
 
     @Test
     void conflictingIdempotencyKeyReturnsProblemDetails() throws Exception {
-        when(service.create(eq("already-used"), org.mockito.ArgumentMatchers.any()))
+        when(service.create(eq("merchant-a"), eq("already-used"), org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new IdempotencyConflictException());
 
         mvc.perform(post("/api/v1/payments")
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
                         .header("Idempotency-Key", "already-used")
                         .contentType("application/json")
                         .content("""
@@ -87,7 +87,7 @@ class PaymentControllerWebTest {
     @Test
     void invalidPaymentPayloadReturnsBadRequestProblem() throws Exception {
         mvc.perform(post("/api/v1/payments")
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
                         .header("Idempotency-Key", "invalid-payload")
                         .contentType("application/json")
                         .content("""
@@ -101,7 +101,7 @@ class PaymentControllerWebTest {
     @Test
     void missingIdempotencyHeaderReturnsBadRequestProblem() throws Exception {
         mvc.perform(post("/api/v1/payments")
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
                         .contentType("application/json")
                         .content("""
                                 {"amount":10.00,"currency":"EUR","merchantReference":"order-123"}
@@ -132,7 +132,7 @@ class PaymentControllerWebTest {
     @Test
     void readScopeCannotCreatePayments() throws Exception {
         mvc.perform(post("/api/v1/payments")
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read")))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read")))
                         .header("Idempotency-Key", "read-only")
                         .contentType("application/json")
                         .content("""
@@ -145,14 +145,14 @@ class PaymentControllerWebTest {
     @Test
     void writeScopeCannotReadPayments() throws Exception {
         mvc.perform(get("/api/v1/payments/{id}", UUID.randomUUID())
-                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write"))))
+                        .with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a")).authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write"))))
                 .andExpect(status().isForbidden());
         org.mockito.Mockito.verifyNoInteractions(service);
     }
 
     @Test
     void unlistedApplicationRouteIsDenied() throws Exception {
-        mvc.perform(get("/actuator/info").with(jwt()))
+        mvc.perform(get("/actuator/info").with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a"))))
                 .andExpect(status().isForbidden());
     }
 }
