@@ -52,21 +52,17 @@ jobs:
           version: v0.74.0
 
   secret-scan:
-    name: Trivy | Source secret scan
+    name: Gitleaks | Git history secret scan
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Check out source
+      - name: Check out full history
         uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Reject secrets in checked-out source
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: secret
-          format: table
-          exit-code: '1'
-          version: v0.74.0
+      - name: Reject committed secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
