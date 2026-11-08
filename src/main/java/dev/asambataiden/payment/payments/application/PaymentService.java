@@ -1,5 +1,7 @@
 package dev.asambataiden.payment.payments.application;
 
+import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 import dev.asambataiden.payment.payments.infrastructure.persistence.Payment;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentRepository;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentJdbcWriter;
@@ -7,9 +9,6 @@ import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentJdbcW
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @Service
 public class PaymentService {
@@ -34,7 +33,7 @@ public class PaymentService {
         if (stored.getAmount().compareTo(request.amount()) != 0
                 || !stored.getCurrency().equals(request.currency())
                 || !stored.getMerchantReference().equals(request.merchantReference())) {
-            throw new ResponseStatusException(CONFLICT, "Idempotency key already used with different request");
+            throw new IdempotencyConflictException();
         }
         return PaymentResult.from(stored);
     }
