@@ -155,4 +155,27 @@ class PaymentControllerWebTest {
         mvc.perform(get("/actuator/info").with(jwt().jwt(token -> token.claim("merchant_id", "merchant-a"))))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    void jwtMissingMerchantIdentityCannotReadPayment() throws Exception {
+        mvc.perform(get("/api/v1/payments/{id}", UUID.randomUUID())
+                        .with(jwt().authorities(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:read"))))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
+    void jwtMissingMerchantIdentityCannotCreatePayment() throws Exception {
+        mvc.perform(post("/api/v1/payments")
+                        .with(jwt().authorities(
+                                new org.springframework.security.core.authority.SimpleGrantedAuthority("SCOPE_payments:write")))
+                        .header("Idempotency-Key", "missing-merchant")
+                        .contentType("application/json")
+                        .content("""
+                                {"amount":10.00,"currency":"EUR","merchantReference":"order-123"}
+                                """))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
 }
