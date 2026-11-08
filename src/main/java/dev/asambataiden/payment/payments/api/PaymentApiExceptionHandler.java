@@ -1,5 +1,7 @@
 package dev.asambataiden.payment.payments.api;
 
+import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,24 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestControllerAdvice
 public class PaymentApiExceptionHandler {
+
+    @ExceptionHandler(IdempotencyConflictException.class)
+    ResponseEntity<ProblemDetail> idempotencyConflict(IdempotencyConflictException exception) {
+        return domainError(HttpStatus.CONFLICT, "Conflict", exception.getMessage());
+    }
+
+    @ExceptionHandler(PaymentNotFoundException.class)
+    ResponseEntity<ProblemDetail> paymentNotFound(PaymentNotFoundException exception) {
+        return domainError(HttpStatus.NOT_FOUND, "Not Found", exception.getMessage());
+    }
+
+    private ResponseEntity<ProblemDetail> domainError(HttpStatus status, String title, String message) {
+        var detail = ProblemDetail.forStatus(status);
+        detail.setTitle(title);
+        detail.setDetail(message);
+        detail.setType(URI.create("about:blank"));
+        return ResponseEntity.status(status).body(detail);
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ProblemDetail> knownHttpError(ResponseStatusException exception) {
