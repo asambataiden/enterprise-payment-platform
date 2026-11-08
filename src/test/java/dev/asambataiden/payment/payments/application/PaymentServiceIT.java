@@ -54,8 +54,8 @@ class PaymentServiceIT {
             "order-integration"
         );
 
-        var created = service.create(key, request);
-        var retrieved = service.get(created.id());
+        var created = service.create("merchant-a", key, request);
+        var retrieved = service.get("merchant-a", created.id());
 
         assertEquals(created.id(), retrieved.id());
         assertEquals("RECEIVED", retrieved.status());
@@ -74,12 +74,12 @@ class PaymentServiceIT {
             "order-retry"
         );
 
-        var first = service.create(key, request);
-        var second = service.create(key, request);
+        var first = service.create("merchant-a", key, request);
+        var second = service.create("merchant-a", key, request);
 
         assertEquals(first.id(), second.id());
 
-        var persisted = repository.findByIdempotencyKey(key);
+        var persisted = repository.findByMerchantIdAndIdempotencyKey("merchant-a", key);
         assertTrue(persisted.isPresent());
         assertEquals(first.id(), persisted.orElseThrow().getId());
     }
@@ -88,14 +88,14 @@ class PaymentServiceIT {
     void changedPayloadWithSameKeyIsRejected() {
         String key = "conflict-" + UUID.randomUUID();
 
-        service.create(key, new CreatePaymentCommand(
+        service.create("merchant-a", key, new CreatePaymentCommand(
             new BigDecimal("10.00"),
             "EUR",
             "order-conflict"
         ));
 
         assertThrows(IdempotencyConflictException.class,
-            () -> service.create(key,
+            () -> service.create("merchant-a", key,
                 new CreatePaymentCommand(
                     new BigDecimal("20.00"),
                     "EUR",
@@ -115,11 +115,11 @@ class PaymentServiceIT {
             try {
                 var first = executor.submit(() -> {
                     start.await();
-                    return service.create(key, request).id();
+                    return service.create("merchant-a", key, request).id();
                 });
                 var second = executor.submit(() -> {
                     start.await();
-                    return service.create(key, request).id();
+                    return service.create("merchant-a", key, request).id();
                 });
                 start.countDown();
                 UUID firstId = first.get(15, TimeUnit.SECONDS);
@@ -127,7 +127,7 @@ class PaymentServiceIT {
 
                 assertEquals(firstId, secondId, "Concurrent retries must resolve to the same payment");
                 Long count = jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                        "SELECT COUNT(*) FROM payments WHERE merchant_id = 'merchant-a' AND idempotency_key = ?",
                         Long.class, key);
                 assertEquals(Long.valueOf(1L), count);
             } finally {
@@ -146,17 +146,17 @@ class PaymentServiceIT {
 
         for (var changed : variations) {
             String key = "conflicting-field-" + UUID.randomUUID();
-            var first = service.create(key, original);
+            var first = service.create("merchant-a", key, original);
 
             assertThrows(IdempotencyConflictException.class,
-                    () -> service.create(key, changed));
+                    () -> service.create("merchant-a", key, changed));
 
-            var persisted = repository.findByIdempotencyKey(key).orElseThrow();
+            var persisted = repository.findByMerchantIdAndIdempotencyKey("merchant-a", key).orElseThrow();
             assertEquals(first.id(), persisted.getId());
             assertEquals("EUR", persisted.getCurrency());
             assertEquals("order-original", persisted.getMerchantReference());
             assertEquals(Long.valueOf(1L), jdbc.queryForObject(
-                    "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                    "SELECT COUNT(*) FROM payments WHERE merchant_id = 'merchant-a' AND idempotency_key = ?",
                     Long.class, key));
         }
     }
@@ -164,14 +164,14 @@ class PaymentServiceIT {
     @Test
     void decimalEquivalentRetryKeepsExistingPaymentId() {
         String key = "decimal-retry-" + UUID.randomUUID();
-        var first = service.create(key, new CreatePaymentCommand(
+        var first = service.create("merchant-a", key, new CreatePaymentCommand(
                 new BigDecimal("10.00"), "EUR", "order-decimal"));
-        var second = service.create(key, new CreatePaymentCommand(
+        var second = service.create("merchant-a", key, new CreatePaymentCommand(
                 new BigDecimal("10.0"), "EUR", "order-decimal"));
 
         assertEquals(first.id(), second.id());
         assertEquals(Long.valueOf(1L), jdbc.queryForObject(
-                "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                "SELECT COUNT(*) FROM payments WHERE merchant_id = 'merchant-a' AND idempotency_key = ?",
                 Long.class, key));
     }
 }
