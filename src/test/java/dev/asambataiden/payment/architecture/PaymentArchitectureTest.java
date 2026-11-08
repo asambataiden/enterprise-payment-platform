@@ -1,13 +1,16 @@
 package dev.asambataiden.payment.architecture;
 
 import com.tngtech.archunit.junit.AnalyzeClasses;
+import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 /** Dependency-direction rules for the independently deployable Payment Service. */
-@AnalyzeClasses(packages = "dev.asambataiden.payment")
+@AnalyzeClasses(
+        packages = "dev.asambataiden.payment",
+        importOptions = ImportOption.DoNotIncludeTests.class)
 class PaymentArchitectureTest {
 
     @ArchTest
