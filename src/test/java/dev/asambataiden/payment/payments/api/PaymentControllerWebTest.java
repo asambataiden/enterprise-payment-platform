@@ -1,11 +1,13 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.shared.observability.CorrelationIdFilter;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.HttpStatus;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.server.ResponseStatusException;
@@ -17,6 +19,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(PaymentController.class)
+@Import(CorrelationIdFilter.class)
 class PaymentControllerWebTest {
 
     @Autowired
@@ -24,6 +27,23 @@ class PaymentControllerWebTest {
 
     @MockitoBean
     private PaymentService service;
+
+    @Test
+    void responseIncludesServerGeneratedCorrelationId() throws Exception {
+        UUID missingId = UUID.randomUUID();
+        when(service.get(missingId))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+
+        mvc.perform(get("/api/v1/payments/{id}", missingId)
+                        .header(CorrelationIdFilter.HEADER_NAME, "untrusted-value"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().exists(CorrelationIdFilter.HEADER_NAME))
+                .andExpect(header().string(CorrelationIdFilter.HEADER_NAME,
+                        org.hamcrest.Matchers.not("untrusted-value")))
+                .andExpect(header().string(CorrelationIdFilter.HEADER_NAME,
+                        org.hamcrest.Matchers.matchesPattern(
+                                "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")));
+    }
 
     @Test
     void unknownPaymentReturnsProblemDetails() throws Exception {
