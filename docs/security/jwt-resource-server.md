@@ -1,43 +1,44 @@
-# Payment Service — JWT resource server boundary (increment 05.1)
+# Payment service — JWT resource-server security boundary
 
-## Implemented
+**Status:** Milestones 05.1–05.5 implemented and verified as an educational simulated payment platform. Deployment against a real IdP remains a separate acceptance gate.
 
-The Payment Service now uses Spring Security's **stateless OAuth2 JWT resource server** and denies unmatched routes by default. The service does not issue tokens or accept HTTP Basic authentication.
+## Authorization policy
 
 | Route | Policy |
-|---|---|
-| `GET /actuator/health` | Public health check |
-| `POST /api/v1/payments` | Verified bearer JWT with `payments:write` scope |
-| `GET /api/v1/payments/{id}` | Verified bearer JWT with `payments:read` scope |
-| All other routes, including `/actuator/info` | Denied |
+| --- | --- |
+| `GET /actuator/health` | Public |
+| `POST /api/v1/payments` | Valid JWT with `payments:write` scope and trusted `merchant_id` claim |
+| `GET /api/v1/payments/{id}` | Valid JWT with `payments:read` scope and payment ownership for `merchant_id` |
+| Any other path (including `/actuator/info`) | Denied |
 
-An OAuth2 `scope` or `scp` claim mapped by Spring Security to `SCOPE_payments:read` and `SCOPE_payments:write` supplies permissions. These permission strings are **not** merchant identity and do **not** implement object/tenant authorization.
+The resource server validates bearer JWTs; it does not mint tokens, accept Basic auth or use cookie sessions. Spring Security maps JWT `scope`/`scp` claims to `SCOPE_...` authorities. Permissions alone do **not** establish tenant identity. `merchant_id` is read only from the successfully authenticated token; it must be nonblank and at most 128 characters. Cross-merchant reads return 404.
 
-## Runtime configuration — mandatory
+## Production configuration contract
 
-For a running application, configure the trusted OIDC provider. Spring Boot requires an issuer or JWK Set URI to configure JWT decoding. A recommended deployment environment uses:
+Set the actual identity provider and audience through deployment configuration:
 
 ```text
 SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://identity.example.invalid/realms/payments
-SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES=payment-service
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES=enterprise-payment-service
+DB_PASSWORD=<injected-by-your-secret-manager>
 ```
 
-Replace example values with the real provider's issuer URL and the audience actually present in the access tokens. Do not use the sample URL, self-signed bearer claims or arbitrary user-controlled headers as proof of identity. Configure resource-server trust, HTTPS, audience validation and key rotation against an approved identity provider.
+The URLs and values above are examples, not functioning credentials. Use the issuer's real HTTPS metadata/JWK endpoints. Do not disable signature/issuer/audience checks, accept merchant identity from caller headers, or promote the test JWT signing keys into deployment. The identity provider must securely bind `merchant_id` to an approved merchant account and control scope issuance. Confirm exact claim structure, audience and key rotation against your chosen IdP.
 
-Without a configured decoder, startup may fail closed; the integration tests deliberately supply a mocked `JwtDecoder` because they call the Java application service directly. No JWT signing keys or credentials are committed to the repo.
+No real IdP integration, key-rotation or production audit/secret-management approval has been completed.
 
-## Coverage
+## Regression evidence
 
-MVC tests cover unauthenticated GET/POST denials, insufficient read/write scopes, and deny-by-default routing. Existing business-error tests run with a mock authenticated principal, preserving coverage of 400/404/409 response contracts. PostgreSQL integration tests still exercise the application and persistence layers.
+- `PaymentControllerWebTest`: MVC responses, scope boundaries, missing merchant claim, anonymous rejection, default denial. Synthetic JWT authentication is **not** cryptographic verification.
+- `JwtTrustValidationTest`: five real RSA-signed JWT decoder cases, including wrong issuer, audience, signature and expiry.
+- `PaymentBearerTokenIT`: six end-to-end signed bearer-token tests through Spring's HTTP security filter chain, controller and PostgreSQL Testcontainers.
+- `PaymentServiceIT`: nine persistence tests including merchant scoping, idempotency and concurrency.
+- `PaymentMigrationUpgradeIT`: a populated V1-to-V2 migration and legacy-data isolation.
 
-## Critical next increment: merchant ownership
+Milestone 05.5 verification: **51/51 local tests passed** and GitHub-hosted Java CI #94 and Security CI #8 succeeded at baseline `dc9d9f0`.
 
-**Not yet implemented:** the persisted `payments` table currently has no merchant ownership identifier. A valid token with `payments:read` can potentially read another merchant's record if its UUID is known. Before any realistic multi-tenant or sensitive-data deployment:
+## Residual risks
 
-1. Introduce a trusted stable `merchant_id` as part of the authenticated application context and payment persistence model.
-2. Scope idempotency uniqueness to `(merchant_id, idempotency_key)`, with a versioned Flyway migration and explicit migration plan for existing rows.
-3. Load payments only with merchant ownership constraints and test cross-merchant reads and retries.
-4. Require authentication for all externally exposed operations; test expired, invalid-signature, wrong-issuer and wrong-audience JWTs with a real test decoder.
-5. Implement rate limiting, suitable response hardening and independent security scans.
+The service is **not production-ready**. Deployment still requires a real IdP, protected network/TLS setup, managed secrets, least-privileged PostgreSQL roles, rate limits, abuse/audit controls, restoration tests and broader supply-chain assurance. If legacy V1 rows exist, reconcile ownership before real multi-tenant operations.
 
-**Scope:** Educational simulated payments only. This increment does not establish production readiness.
+See [merchant isolation](merchant-isolation.md) and [PR #1 release-readiness assessment](../reviews/pr-0001-release-readiness.md).
