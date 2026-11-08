@@ -1,46 +1,38 @@
 package dev.asambataiden.payment.payments.application;
 
+import dev.asambataiden.payment.payments.application.port.PaymentStore;
 import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
-import dev.asambataiden.payment.payments.infrastructure.persistence.Payment;
-import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentRepository;
-import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentJdbcWriter;
-
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PaymentService {
-    private final PaymentRepository repository;
-    private final PaymentJdbcWriter writer;
+    private final PaymentStore store;
 
-    public PaymentService(PaymentRepository repository, PaymentJdbcWriter writer) {
-        this.repository = repository;
-        this.writer = writer;
+    public PaymentService(PaymentStore store) {
+        this.store = store;
     }
 
     @Transactional
-    public PaymentResult create(String key, CreatePaymentCommand request) {
-        // PostgreSQL arbitrates concurrent inserts. A losing transaction waits for
-        // the winner before ON CONFLICT returns no rows at READ COMMITTED isolation.
-        Payment candidate = new Payment(key, request.amount(), request.currency(), request.merchantReference());
-        writer.insertIfAbsent(candidate);
-        Payment stored = repository.findByIdempotencyKey(key)
-                .orElseThrow(() -> new IllegalStateException("Idempotent payment missing after insert attempt"));
+    public PaymentResult create(String key, CreatePaymentCommand command) {
+        // The PostgreSQL adapter arbitrates concurrent inserts and returns
+        // the winning row in the same transaction.
+        PaymentResult stored = store.insertIfAbsentAndFind(key, command);
 
-        // A reused key with different data must never silently accept new terms.
-        if (stored.getAmount().compareTo(request.amount()) != 0
-                || !stored.getCurrency().equals(request.currency())
-                || !stored.getMerchantReference().equals(request.merchantReference())) {
+        // A reused key must never silently accept different payment terms.
+        if (stored.amount().compareTo(command.amount()) != 0
+                || !stored.currency().equals(command.currency())
+                || !stored.merchantReference().equals(command.merchantReference())) {
             throw new IdempotencyConflictException();
         }
-        return PaymentResult.from(stored);
+        return stored;
     }
 
     @Transactional(readOnly = true)
     public PaymentResult get(UUID id) {
-        return repository.findById(id).map(PaymentResult::from)
+        return store.findById(id)
                 .orElseThrow(() -> new PaymentNotFoundException(id));
     }
 }
