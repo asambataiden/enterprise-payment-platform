@@ -39,3 +39,17 @@ This local exactly-once *effect* technique does not make remote calls or downstr
 ## Next gate
 
 Before connecting Kafka, add a supervised and instrumented publisher adapter; introduce a consumer that validates trusted message origin and performs local effects transactionally; test crash-after-publish, lease-expiry races, poison events and broker unavailability. Keep PR #2 in draft until reviewed.
+
+## Milestone 06.5 — Opt-in runtime, quarantine, trusted local consumer
+
+- Flyway V6 adds `dead_lettered_at` and a non-sensitive `last_failure_category`. After **five** failed transport attempts, an event is quarantined and excluded from normal claims. It is **not deleted**. An operator must review the cause and explicitly reset it; automatic redelivery of poisoned messages is unsafe.
+- `SupervisedPaymentOutboxWorker` performs at most 1–100 claims per invocation and exposes in-process claimed-cycle/error counters. It is not a scheduler. No worker is launched at application startup, and no actual broker is wired.
+- `TrustedPaymentEventConsumer` verifies merchant, event ID, payment ID and target state against the committed local outbox, then inserts an inbox receipt and executes a local-database-only effect in the **same transaction**. Duplicates are skipped; rollback also removes the receipt.
+- This validation is **not** a replacement for transport authentication, authenticated broker identities or cross-service event provenance. A consumer in another database cannot query the producer's private outbox as its authority and requires a dedicated signed/authenticated event boundary.
+- A delivery failure is not exposed as success. The dispatcher currently reports that work was claimed; backoff/quarantine details remain in PostgreSQL for monitoring.
+- The lease remains fixed at 30 seconds. A production transport adapter must enforce publish timeouts shorter than the lease or add safe lease renewal; delayed publishes can still duplicate delivery.
+- In-process counters reset on process restart. Production requires a metrics backend, alert thresholds (pending age, quarantined count, retry rate, delivery lag), worker health supervision and runbooks.
+
+### Operations gate
+
+Before enabling scheduled background delivery or a Kafka adapter, define secure Kafka identities and TLS, topic partitions and ordering by merchant/payment, consumer-group rollout, versioned schema compatibility, replay controls, trace propagation, bounded payloads and a documented dead-letter replay approval procedure. Do not treat these tests as validating Kafka itself.
