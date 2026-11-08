@@ -9,7 +9,7 @@ import static org.mockito.Mockito.*;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
+import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
 
 class PaymentServiceTest {
     private final PaymentRepository repository = mock(PaymentRepository.class);
@@ -34,7 +34,7 @@ class PaymentServiceTest {
         Payment saved = new Payment("test-key", new BigDecimal("10.00"), "EUR", "order-123");
         when(repository.findByIdempotencyKey("test-key")).thenReturn(Optional.of(saved));
 
-        assertThrows(ResponseStatusException.class, () -> service.create("test-key",
+        assertThrows(IdempotencyConflictException.class, () -> service.create("test-key",
                 new CreatePaymentCommand(new BigDecimal("15.00"), "EUR", "order-123")));
     }
 
