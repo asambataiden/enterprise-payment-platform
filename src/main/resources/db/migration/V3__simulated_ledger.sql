@@ -12,6 +12,7 @@ CREATE TABLE ledger_entries (
     event_id UUID NOT NULL,
     currency VARCHAR(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finalized BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT uq_ledger_event_per_merchant UNIQUE (merchant_id, event_id),
     CONSTRAINT fk_ledger_payment_owner FOREIGN KEY (merchant_id, payment_id)
         REFERENCES payments (merchant_id, id)
@@ -35,9 +36,43 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_ledger_entries_immutable
-    BEFORE UPDATE OR DELETE ON ledger_entries
+CREATE OR REPLACE FUNCTION ledger_allow_finalization_only() RETURNS trigger AS $
+BEGIN
+    IF OLD.finalized = FALSE AND NEW.finalized = TRUE
+        AND ROW(OLD.id, OLD.merchant_id, OLD.payment_id, OLD.event_id, OLD.currency, OLD.created_at)
+            IS NOT DISTINCT FROM
+            ROW(NEW.id, NEW.merchant_id, NEW.payment_id, NEW.event_id, NEW.currency, NEW.created_at) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'Finalized ledger journal records are immutable';
+END;
+$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_ledger_entries_finalize
+    BEFORE UPDATE ON ledger_entries
+    FOR EACH ROW EXECUTE FUNCTION ledger_allow_finalization_only();
+
+CREATE TRIGGER trg_ledger_entries_delete
+    BEFORE DELETE ON ledger_entries
     FOR EACH ROW EXECUTE FUNCTION ledger_reject_mutation();
+
+CREATE OR REPLACE FUNCTION ledger_posting_insert_guard() RETURNS trigger AS $
+DECLARE
+    is_finalized BOOLEAN;
+BEGIN
+    -- The row lock serializes posting inserts with finalization.
+    SELECT finalized INTO is_finalized
+    FROM ledger_entries WHERE id = NEW.entry_id FOR UPDATE;
+    IF is_finalized THEN
+        RAISE EXCEPTION 'Cannot append postings after ledger finalization';
+    END IF;
+    RETURN NEW;
+END;
+$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_ledger_postings_insert_guard
+    BEFORE INSERT ON ledger_postings
+    FOR EACH ROW EXECUTE FUNCTION ledger_posting_insert_guard();
 
 CREATE TRIGGER trg_ledger_postings_immutable
     BEFORE UPDATE OR DELETE ON ledger_postings
@@ -49,6 +84,11 @@ DECLARE
     credit_total NUMERIC;
     line_count BIGINT;
 BEGIN
+    IF NOT (SELECT finalized FROM ledger_entries WHERE id = p_entry_id) THEN
+        RAISE EXCEPTION 'Journal must be finalized before commit'
+            USING ERRCODE = '23514';
+    END IF;
+
     SELECT COUNT(*),
            COALESCE(SUM(amount) FILTER (WHERE side = 'DEBIT'), 0),
            COALESCE(SUM(amount) FILTER (WHERE side = 'CREDIT'), 0)
