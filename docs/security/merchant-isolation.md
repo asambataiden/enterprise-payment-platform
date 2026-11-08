@@ -22,4 +22,10 @@ Do not interpret successful synthetic MVC requests (`jwt()`) as proof of cryptog
 
 Defense in depth: merchant isolation is currently enforced by repository query predicates. PostgreSQL Row Level Security, database least-privilege roles, authenticated audit trails and cross-service authorization are separate deployment hardening tasks.
 
+## Milestone 05.3 verification additions
+
+- `JwtTrustValidationTest` generates ephemeral RSA key pairs and signs real JWS access-token fixtures, then checks valid claims, wrong issuer, wrong audience, expired token and untrusted signing key using a real Nimbus JWT decoder.
+- `PaymentMigrationUpgradeIT` explicitly creates an old V1 schema, inserts an existing payment, upgrades to V2, verifies that the row remains unassigned and unseen by merchant-scoped reads, and confirms the new composite idempotency namespace.
+- These tests **do not yet validate a deployed issuer's JWKS discovery/configuration, live HTTP bearer-token chain, or access-token claim issuance policy**; they are focused regression coverage, not an identity-provider certification.
+
 **Status:** Under CI and local verification. This is a simulated payment platform, not a regulated production processor.
