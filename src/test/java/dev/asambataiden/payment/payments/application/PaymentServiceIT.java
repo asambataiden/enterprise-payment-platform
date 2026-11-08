@@ -130,4 +130,43 @@ class PaymentServiceIT {
             }
         }
     }
+
+    @Test
+    void changedCurrencyOrMerchantReferenceDoesNotCreateAnotherRow() {
+        var original = new CreatePaymentCommand(
+                new BigDecimal("10.00"), "EUR", "order-original");
+        var variations = java.util.List.of(
+                new CreatePaymentCommand(new BigDecimal("10.00"), "USD", "order-original"),
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-changed"));
+
+        for (var changed : variations) {
+            String key = "conflicting-field-" + UUID.randomUUID();
+            var first = service.create(key, original);
+
+            assertThrows(IdempotencyConflictException.class,
+                    () -> service.create(key, changed));
+
+            var persisted = repository.findByIdempotencyKey(key).orElseThrow();
+            assertEquals(first.id(), persisted.getId());
+            assertEquals("EUR", persisted.getCurrency());
+            assertEquals("order-original", persisted.getMerchantReference());
+            assertEquals(Long.valueOf(1L), jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                    Long.class, key));
+        }
+    }
+
+    @Test
+    void decimalEquivalentRetryKeepsExistingPaymentId() {
+        String key = "decimal-retry-" + UUID.randomUUID();
+        var first = service.create(key, new CreatePaymentCommand(
+                new BigDecimal("10.00"), "EUR", "order-decimal"));
+        var second = service.create(key, new CreatePaymentCommand(
+                new BigDecimal("10.0"), "EUR", "order-decimal"));
+
+        assertEquals(first.id(), second.id());
+        assertEquals(Long.valueOf(1L), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
+                Long.class, key));
+    }
 }
