@@ -150,7 +150,6 @@ class PaymentControllerWebTest {
     }
 
     @Test
-    @WithAnonymousUser
     void unlistedApplicationRouteIsDenied() throws Exception {
         mvc.perform(get("/actuator/info")).andExpect(status().isForbidden());
     }
