@@ -13,9 +13,9 @@ import org.springframework.stereotype.Repository;
 public class PaymentJdbcWriter {
     private static final String INSERT_IF_ABSENT = """
             INSERT INTO payments
-                (id, idempotency_key, amount, currency, merchant_reference, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT (idempotency_key) DO NOTHING
+                (id, merchant_id, idempotency_key, amount, currency, merchant_reference, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (merchant_id, idempotency_key) DO NOTHING
             RETURNING id
             """;
 
@@ -30,6 +30,7 @@ public class PaymentJdbcWriter {
                 INSERT_IF_ABSENT,
                 UUID.class,
                 payment.getId(),
+                payment.getMerchantId(),
                 payment.getIdempotencyKey(),
                 payment.getAmount(),
                 payment.getCurrency(),
