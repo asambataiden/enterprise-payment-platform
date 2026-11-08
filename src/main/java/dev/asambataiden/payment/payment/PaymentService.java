@@ -10,22 +10,29 @@ import static org.springframework.http.HttpStatus.NOT_FOUND;
 @Service
 public class PaymentService {
     private final PaymentRepository repository;
+    private final PaymentJdbcWriter writer;
 
-    public PaymentService(PaymentRepository repository) { this.repository = repository; }
+    public PaymentService(PaymentRepository repository, PaymentJdbcWriter writer) {
+        this.repository = repository;
+        this.writer = writer;
+    }
 
     @Transactional
     public PaymentResponse create(String key, CreatePaymentRequest request) {
-        return repository.findByIdempotencyKey(key)
-                .map(existing -> {
-                    if (existing.getAmount().compareTo(request.amount()) != 0
-                            || !existing.getCurrency().equals(request.currency())
-                            || !existing.getMerchantReference().equals(request.merchantReference())) {
-                        throw new ResponseStatusException(CONFLICT, "Idempotency key already used with different request");
-                    }
-                    return PaymentResponse.from(existing);
-                })
-                .orElseGet(() -> PaymentResponse.from(repository.saveAndFlush(
-                        new Payment(key, request.amount(), request.currency(), request.merchantReference()))));
+        // PostgreSQL arbitrates concurrent inserts. A losing transaction waits for
+        // the winner before ON CONFLICT returns no rows at READ COMMITTED isolation.
+        Payment candidate = new Payment(key, request.amount(), request.currency(), request.merchantReference());
+        writer.insertIfAbsent(candidate);
+        Payment stored = repository.findByIdempotencyKey(key)
+                .orElseThrow(() -> new IllegalStateException("Idempotent payment missing after insert attempt"));
+
+        // A reused key with different data must never silently accept new terms.
+        if (stored.getAmount().compareTo(request.amount()) != 0
+                || !stored.getCurrency().equals(request.currency())
+                || !stored.getMerchantReference().equals(request.merchantReference())) {
+            throw new ResponseStatusException(CONFLICT, "Idempotency key already used with different request");
+        }
+        return PaymentResponse.from(stored);
     }
 
     @Transactional(readOnly = true)
