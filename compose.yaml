@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: paymentdb
       POSTGRES_USER: payment_app
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-localdev_only_change_me}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in your local environment}
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
