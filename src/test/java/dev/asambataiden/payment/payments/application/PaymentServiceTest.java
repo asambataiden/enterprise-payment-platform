@@ -31,7 +31,7 @@ class PaymentServiceTest {
         var actual = service.create("merchant-a", "test-key", command);
 
         assertEquals(stored.id(), actual.id());
-        verify(store).insertIfAbsentAndFind("test-key", command);
+        verify(store).insertIfAbsentAndFind("merchant-a", "test-key", command);
     }
 
     @Test
@@ -53,7 +53,7 @@ class PaymentServiceTest {
         var result = service.create("merchant-a", "fresh", command);
 
         assertEquals("RECEIVED", result.status());
-        verify(store).insertIfAbsentAndFind("fresh", command);
+        verify(store).insertIfAbsentAndFind("merchant-a", "fresh", command);
     }
 
     @Test
