@@ -50,6 +50,8 @@ public final class PaymentOutboxDispatcher {
             transactions.executeWithoutResult(status -> jdbc.update("""
                 UPDATE payment_outbox
                 SET lease_token = NULL, leased_until = NULL,
+                    dead_lettered_at = CASE WHEN delivery_attempts >= 5 THEN CURRENT_TIMESTAMP ELSE NULL END,
+                    last_failure_category = 'PUBLISH_EXCEPTION',
                     next_attempt_at = CURRENT_TIMESTAMP
                         + (LEAST(POWER(2.0, LEAST(delivery_attempts, 8)), 300) * INTERVAL '1 second')
                 WHERE merchant_id = ? AND id = ? AND lease_token = ? AND dispatched_at IS NULL
@@ -64,6 +66,8 @@ public final class PaymentOutboxDispatcher {
             WITH next_event AS (
                 SELECT merchant_id, id FROM payment_outbox
                 WHERE dispatched_at IS NULL
+                  AND dead_lettered_at IS NULL
+                  AND delivery_attempts < 5
                   AND next_attempt_at <= CURRENT_TIMESTAMP
                   AND (leased_until IS NULL OR leased_until <= CURRENT_TIMESTAMP)
                 ORDER BY created_at, merchant_id, id
