@@ -1,13 +1,14 @@
 package dev.asambataiden.payment.payments.api;
 
-import dev.asambataiden.payment.payments.infrastructure.persistence.Payment;
+import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 class PaymentApiExceptionHandlerTest {
 
@@ -15,8 +16,7 @@ class PaymentApiExceptionHandlerTest {
 
     @Test
     void idempotencyConflictReturnsProblemDetails() {
-        var response = handler.knownHttpError(new ResponseStatusException(
-                HttpStatus.CONFLICT, "Idempotency key already used with different request"));
+        var response = handler.idempotencyConflict(new IdempotencyConflictException());
 
         assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
         assertNotNull(response.getBody());
@@ -28,8 +28,7 @@ class PaymentApiExceptionHandlerTest {
 
     @Test
     void missingPaymentReturnsNotFoundProblem() {
-        var response = handler.knownHttpError(
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
+        var response = handler.paymentNotFound(new PaymentNotFoundException(UUID.randomUUID()));
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
