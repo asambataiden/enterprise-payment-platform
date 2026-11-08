@@ -14,6 +14,9 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -26,13 +29,24 @@ public class PaymentController {
     @PostMapping
     public ResponseEntity<PaymentResponse> create(
             @RequestHeader("Idempotency-Key") @NotBlank String key,
-            @Valid @RequestBody CreatePaymentRequest request) {
+            @Valid @RequestBody CreatePaymentRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
         if (key.length() > 128) { throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key must be <= 128 characters"); }
-        PaymentResponse payment = PaymentResponse.from(service.create(key,
+        PaymentResponse payment = PaymentResponse.from(service.create(merchantId(jwt), key,
                 new CreatePaymentCommand(request.amount(), request.currency(), request.merchantReference())));
         return ResponseEntity.created(URI.create("/api/v1/payments/" + payment.id())).body(payment);
     }
 
     @GetMapping("/{id}")
-    public PaymentResponse get(@PathVariable UUID id) { return PaymentResponse.from(service.get(id)); }
+    public PaymentResponse get(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return PaymentResponse.from(service.get(merchantId(jwt), id));
+    }
+
+    private static String merchantId(Jwt jwt) {
+        String merchantId = jwt == null ? null : jwt.getClaimAsString("merchant_id");
+        if (merchantId == null || merchantId.isBlank() || merchantId.length() > 128) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Merchant identity is required");
+        }
+        return merchantId;
+    }
 }
