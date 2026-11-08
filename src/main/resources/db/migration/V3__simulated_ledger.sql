@@ -34,7 +34,7 @@ CREATE OR REPLACE FUNCTION ledger_reject_mutation() RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'Ledger journal records are immutable';
 END;
-$$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ledger_allow_finalization_only() RETURNS trigger AS $$
 BEGIN
@@ -100,21 +100,21 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 END;
-$$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ledger_check_entry_balance() RETURNS trigger AS $$
 BEGIN
     PERFORM ledger_assert_balanced(NEW.id);
     RETURN NULL;
 END;
-$$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ledger_check_posting_balance() RETURNS trigger AS $$
 BEGIN
     PERFORM ledger_assert_balanced(NEW.entry_id);
     RETURN NULL;
 END;
-$$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE CONSTRAINT TRIGGER trg_ledger_entry_balance
     AFTER INSERT ON ledger_entries
