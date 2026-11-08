@@ -146,4 +146,74 @@ class PaymentOutboxDispatcherIT {
         assertEquals(1, published.get());
         assertEquals(1, count("SELECT COUNT(*) FROM payment_outbox WHERE id = ? AND dispatched_at IS NOT NULL", event));
     }
+    @Test
+    void poisonEventIsQuarantinedAfterFiveFailures() {
+        UUID eventId = event("outbox-poison");
+        jdbc.update("UPDATE payment_outbox SET next_attempt_at = CURRENT_TIMESTAMP + INTERVAL '1 hour' WHERE dispatched_at IS NULL AND id <> ?", eventId);
+        var dispatcher = new PaymentOutboxDispatcher(jdbc, manager, e -> {
+            throw new IllegalStateException("unavailable transport");
+        });
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            assertTrue(dispatcher.dispatchOne());
+            assertEquals(attempt, jdbc.queryForObject(
+                    "SELECT delivery_attempts FROM payment_outbox WHERE id = ?", Integer.class, eventId));
+            jdbc.update("UPDATE payment_outbox SET next_attempt_at = CURRENT_TIMESTAMP WHERE id = ?", eventId);
+        }
+        assertEquals(1, count("SELECT COUNT(*) FROM payment_outbox WHERE id = ? AND dead_lettered_at IS NOT NULL", eventId));
+        assertFalse(dispatcher.dispatchOne());
+        assertEquals(0, count("SELECT COUNT(*) FROM payment_outbox WHERE id = ? AND dispatched_at IS NOT NULL", eventId));
+    }
+
+    @Test
+    void trustedConsumerRejectsForgedEventsAndDeduplicatesLocalEffects() {
+        UUID eventId = event("outbox-consumer-a");
+        UUID paymentId = jdbc.queryForObject(
+                "SELECT payment_id FROM payment_outbox WHERE id = ?", UUID.class, eventId);
+        var valid = new PaymentOutboxEvent(1, eventId, "outbox-consumer-a", paymentId, "AUTHORIZED");
+        var forged = new PaymentOutboxEvent(1, eventId, "outbox-consumer-b", paymentId, "AUTHORIZED");
+        var consumer = new TrustedPaymentEventConsumer(jdbc, manager);
+        AtomicInteger effects = new AtomicInteger();
+        assertThrows(SecurityException.class, () ->
+                consumer.consume("consumer-a", forged, effects::incrementAndGet));
+        assertTrue(consumer.consume("consumer-a", valid, effects::incrementAndGet));
+        assertFalse(consumer.consume("consumer-a", valid, effects::incrementAndGet));
+        assertEquals(1, effects.get());
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM payment_inbox
+                WHERE consumer_name = 'consumer-a' AND merchant_id = 'outbox-consumer-a' AND event_id = ?
+                """, Integer.class, eventId));
+    }
+
+    @Test
+    void consumerRollsBackReceiptWhenLocalDatabaseEffectFails() {
+        UUID eventId = event("outbox-consumer-b");
+        UUID paymentId = jdbc.queryForObject(
+                "SELECT payment_id FROM payment_outbox WHERE id = ?", UUID.class, eventId);
+        var valid = new PaymentOutboxEvent(1, eventId, "outbox-consumer-b", paymentId, "AUTHORIZED");
+        var consumer = new TrustedPaymentEventConsumer(jdbc, manager);
+        assertThrows(IllegalStateException.class, () -> consumer.consume(
+                "consumer-rollback", valid, () -> { throw new IllegalStateException("effect failed"); }));
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payment_inbox WHERE consumer_name = 'consumer-rollback' AND event_id = ?",
+                Integer.class, eventId));
+        assertTrue(consumer.consume("consumer-rollback", valid, () -> {}));
+    }
+
+    @Test
+    void boundedWorkerDrainsAtMostItsConfiguredBatchSize() {
+        UUID first = event("outbox-worker-a");
+        UUID second = event("outbox-worker-b");
+        jdbc.update("UPDATE payment_outbox SET next_attempt_at = CURRENT_TIMESTAMP + INTERVAL '1 hour' WHERE dispatched_at IS NULL AND id NOT IN (?, ?)", first, second);
+        List<PaymentOutboxEvent> published = new ArrayList<>();
+        var dispatcher = new PaymentOutboxDispatcher(jdbc, manager, published::add);
+        var worker = new SupervisedPaymentOutboxWorker(dispatcher, 1);
+        assertEquals(1, worker.runCycle());
+        assertEquals(1, published.size());
+        assertEquals(1, worker.runCycle());
+        assertEquals(2, published.size());
+        assertEquals(0, worker.runCycle());
+        assertEquals(2L, worker.claimedCount());
+        assertEquals(0L, worker.failedCycleCount());
+    }
+
 }
