@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'feat/payment-reliability'
   workflow_dispatch:
 
 permissions:
