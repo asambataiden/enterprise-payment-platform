@@ -28,6 +28,13 @@ class PaymentArchitectureTest {
                     .resideInAPackage("..payments.api..");
 
     @ArchTest
+    static final ArchRule application_does_not_depend_on_spring_web =
+            noClasses()
+                    .that().resideInAPackage("..payments.application..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("org.springframework.web..");
+
+    @ArchTest
     static final ArchRule response_dtos_must_not_depend_on_persistence =
             noClasses()
                     .that().resideInAPackage("..payments.api.dto..")
