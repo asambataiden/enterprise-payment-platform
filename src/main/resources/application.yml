@@ -19,3 +19,9 @@ management:
   endpoint:
     health:
       show-details: never
+
+# Include request correlation in human-readable local logs.
+# JSON log formatting for deployed environments will be configured separately.
+logging:
+  pattern:
+    level: "%5p [correlationId:%X{correlationId:-none}]"
