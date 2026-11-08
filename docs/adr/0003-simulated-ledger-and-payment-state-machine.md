@@ -41,3 +41,18 @@ The next increment requires an explicit simulated lifecycle and journal model, s
 - Review ledger/payments currency consistency, authorized account plans, journal-event semantics and transaction roles with explicit domain rules.
 - Implement transactional state transition + journal + outbox persistence and tests for duplicate events, lost updates and concurrent capture.
 - Maintain **separate stacked PR** review; do not change the draft state or merge PR #1 without approval.
+
+## Milestone 06.3: internal atomic simulation workflow
+
+- Flyway V4 permits all states enumerated by the pure domain state machine and creates `payment_outbox` with an event identifier unique **per merchant** and a merchant-owned payment reference.
+- The internal `SimulatedPaymentTransitionService.advance(merchantId, paymentId, eventId, target)` locks the merchant-owned payment row with `FOR UPDATE`; it validates transitions before changing `status`.
+- Retried events return their prior target only when merchant, payment, event ID and target match; reuse with different payment or target is rejected.
+- A simulated `CAPTURED` transition creates balanced ledger postings using the **persisted** payment amount and currency, not user-supplied ledger amounts or account IDs.
+- The state update, optional capture journal and pending outbox record share **one** database transaction. Failed ledger persistence and failed event validation must roll back the state change; no external publisher or money transfer is wired.
+- `AUTHORIZED`, `FAILED`, `CANCELLED` and `REFUNDED` transitions currently write an outbox record but **no financial journal**. Refund accounting and reversals are intentionally deferred: do not claim the ledger models settlement, reversals or payment obligations.
+- No public endpoint or authorization adapter invokes this workflow. Before attaching an external webhook/command consumer, define trusted event provenance, replay controls, state-event mapping, transaction isolation, and an outbox publisher with at-least-once delivery and consumer deduplication.
+
+### 06.3 acceptance
+
+- Atomic authorization and capture, idempotent replay, cross-merchant rejection, invalid transitions, concurrent update serialization, and rollback on ledger conflict covered using PostgreSQL Testcontainers.
+- Verify Java and security CI at the final commit head before declaring 06.3 complete.
