@@ -16,10 +16,10 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResult create(String key, CreatePaymentCommand command) {
+    public PaymentResult create(String merchantId, String key, CreatePaymentCommand command) {
         // The PostgreSQL adapter arbitrates concurrent inserts and returns
         // the winning row in the same transaction.
-        PaymentResult stored = store.insertIfAbsentAndFind(key, command);
+        PaymentResult stored = store.insertIfAbsentAndFind(merchantId, key, command);
 
         // A reused key must never silently accept different payment terms.
         if (stored.amount().compareTo(command.amount()) != 0
@@ -31,8 +31,8 @@ public class PaymentService {
     }
 
     @Transactional(readOnly = true)
-    public PaymentResult get(UUID id) {
-        return store.findById(id)
+    public PaymentResult get(String merchantId, UUID id) {
+        return store.findByMerchantIdAndId(merchantId, id)
                 .orElseThrow(() -> new PaymentNotFoundException(id));
     }
 }
