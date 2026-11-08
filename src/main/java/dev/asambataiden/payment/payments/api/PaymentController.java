@@ -1,6 +1,7 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
 import dev.asambataiden.payment.payments.api.dto.PaymentResponse;
 import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
 
@@ -27,10 +28,11 @@ public class PaymentController {
             @RequestHeader("Idempotency-Key") @NotBlank String key,
             @Valid @RequestBody CreatePaymentRequest request) {
         if (key.length() > 128) { throw new ResponseStatusException(BAD_REQUEST, "Idempotency-Key must be <= 128 characters"); }
-        PaymentResponse payment = service.create(key, request);
+        PaymentResponse payment = PaymentResponse.from(service.create(key,
+                new CreatePaymentCommand(request.amount(), request.currency(), request.merchantReference())));
         return ResponseEntity.created(URI.create("/api/v1/payments/" + payment.id())).body(payment);
     }
 
     @GetMapping("/{id}")
-    public PaymentResponse get(@PathVariable UUID id) { return service.get(id); }
+    public PaymentResponse get(@PathVariable UUID id) { return PaymentResponse.from(service.get(id)); }
 }
