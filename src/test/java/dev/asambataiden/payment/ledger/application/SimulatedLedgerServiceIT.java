@@ -6,9 +6,11 @@ import dev.asambataiden.payment.ledger.domain.PostingSide;
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
 import dev.asambataiden.payment.payments.application.PaymentService;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -112,11 +114,11 @@ class SimulatedLedgerServiceIT {
         JournalEntry entry = journal("ledger-a", payment("ledger-a"));
         ledger.append(UUID.randomUUID(), entry);
 
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+        assertSqlState("P0001", () -> jdbc.update(
                 "UPDATE ledger_postings SET amount = 99.00 WHERE entry_id = ?", entry.entryId()));
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+        assertSqlState("P0001", () -> jdbc.update(
                 "DELETE FROM ledger_postings WHERE entry_id = ?", entry.entryId()));
-        assertThrows(DataIntegrityViolationException.class, () -> jdbc.update(
+        assertSqlState("P0001", () -> jdbc.update(
                 "DELETE FROM ledger_entries WHERE id = ?", entry.entryId()));
     }
 
@@ -125,7 +127,7 @@ class SimulatedLedgerServiceIT {
         UUID ownerPayment = payment("ledger-a");
         UUID entryId = UUID.randomUUID();
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        assertThrows(DataIntegrityViolationException.class, () -> tx.executeWithoutResult(status -> {
+        assertSqlState("23514", () -> tx.executeWithoutResult(status -> {
             jdbc.update("""
                     INSERT INTO ledger_entries (id, merchant_id, payment_id, event_id, currency)
                     VALUES (?, ?, ?, ?, 'EUR')
@@ -143,12 +145,24 @@ class SimulatedLedgerServiceIT {
     void databaseRejectsJournalWithoutAnyPostingsOnCommit() {
         UUID entryId = UUID.randomUUID();
         TransactionTemplate tx = new TransactionTemplate(transactionManager);
-        assertThrows(DataIntegrityViolationException.class, () -> tx.executeWithoutResult(status ->
+        assertSqlState("23514", () -> tx.executeWithoutResult(status ->
                 jdbc.update("""
                     INSERT INTO ledger_entries (id, merchant_id, payment_id, event_id, currency)
                     VALUES (?, ?, ?, ?, 'EUR')
                     """, entryId, "ledger-a", payment("ledger-a"), UUID.randomUUID())));
         assertEquals(Long.valueOf(0), jdbc.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries WHERE id = ?", Long.class, entryId));
+    }
+    private static void assertSqlState(String expectedSqlState, Executable operation) {
+        RuntimeException thrown = assertThrows(RuntimeException.class, operation);
+        Throwable cause = thrown;
+        while (cause != null) {
+            if (cause instanceof SQLException sql && expectedSqlState.equals(sql.getSQLState())) {
+                return;
+            }
+            cause = cause.getCause();
+        }
+        fail("Expected PostgreSQL SQLSTATE " + expectedSqlState
+                + " but received " + thrown.getClass().getName(), thrown);
     }
 }
