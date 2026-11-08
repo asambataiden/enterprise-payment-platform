@@ -34,9 +34,9 @@ CREATE OR REPLACE FUNCTION ledger_reject_mutation() RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'Ledger journal records are immutable';
 END;
-$$ LANGUAGE plpgsql;
+$$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION ledger_allow_finalization_only() RETURNS trigger AS $
+CREATE OR REPLACE FUNCTION ledger_allow_finalization_only() RETURNS trigger AS $$
 BEGIN
     IF OLD.finalized = FALSE AND NEW.finalized = TRUE
         AND ROW(OLD.id, OLD.merchant_id, OLD.payment_id, OLD.event_id, OLD.currency, OLD.created_at)
@@ -46,7 +46,7 @@ BEGIN
     END IF;
     RAISE EXCEPTION 'Finalized ledger journal records are immutable';
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_ledger_entries_finalize
     BEFORE UPDATE ON ledger_entries
@@ -56,7 +56,7 @@ CREATE TRIGGER trg_ledger_entries_delete
     BEFORE DELETE ON ledger_entries
     FOR EACH ROW EXECUTE FUNCTION ledger_reject_mutation();
 
-CREATE OR REPLACE FUNCTION ledger_posting_insert_guard() RETURNS trigger AS $
+CREATE OR REPLACE FUNCTION ledger_posting_insert_guard() RETURNS trigger AS $$
 DECLARE
     is_finalized BOOLEAN;
 BEGIN
@@ -68,7 +68,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_ledger_postings_insert_guard
     BEFORE INSERT ON ledger_postings
@@ -100,21 +100,21 @@ BEGIN
             USING ERRCODE = '23514';
     END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ledger_check_entry_balance() RETURNS trigger AS $$
 BEGIN
     PERFORM ledger_assert_balanced(NEW.id);
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION ledger_check_posting_balance() RETURNS trigger AS $$
 BEGIN
     PERFORM ledger_assert_balanced(NEW.entry_id);
     RETURN NULL;
 END;
-$$ LANGUAGE plpgsql;
+$$$ LANGUAGE plpgsql;
 
 CREATE CONSTRAINT TRIGGER trg_ledger_entry_balance
     AFTER INSERT ON ledger_entries
