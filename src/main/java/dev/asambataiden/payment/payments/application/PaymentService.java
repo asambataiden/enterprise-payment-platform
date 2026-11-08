@@ -41,6 +41,6 @@ public class PaymentService {
     @Transactional(readOnly = true)
     public PaymentResult get(UUID id) {
         return repository.findById(id).map(PaymentResult::from)
-                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Payment not found"));
+                .orElseThrow(() -> new PaymentNotFoundException(id));
     }
 }
