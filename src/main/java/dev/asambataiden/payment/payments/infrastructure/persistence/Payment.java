@@ -10,7 +10,9 @@ import java.util.UUID;
 public class Payment {
     @Id
     private UUID id;
-    @Column(name = "idempotency_key", nullable = false, unique = true, length = 128)
+    @Column(name = "merchant_id", length = 128)
+    private String merchantId;
+    @Column(name = "idempotency_key", nullable = false, length = 128)
     private String idempotencyKey;
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
@@ -25,8 +27,9 @@ public class Payment {
 
     protected Payment() {}
 
-    public Payment(String idempotencyKey, BigDecimal amount, String currency, String merchantReference) {
+    public Payment(String merchantId, String idempotencyKey, BigDecimal amount, String currency, String merchantReference) {
         this.id = UUID.randomUUID();
+        this.merchantId = merchantId;
         this.idempotencyKey = idempotencyKey;
         this.amount = amount;
         this.currency = currency;
@@ -36,6 +39,7 @@ public class Payment {
     }
 
     public UUID getId() { return id; }
+    public String getMerchantId() { return merchantId; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public BigDecimal getAmount() { return amount; }
     public String getCurrency() { return currency; }
