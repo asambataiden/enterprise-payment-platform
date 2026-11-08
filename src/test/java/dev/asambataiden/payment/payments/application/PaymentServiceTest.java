@@ -63,4 +63,33 @@ class PaymentServiceTest {
 
         assertThrows(PaymentNotFoundException.class, () -> service.get(id));
     }
+
+    @Test
+    void reusedKeyWithDifferentCurrencyIsRejected() {
+        var command = new CreatePaymentCommand(new BigDecimal("10.00"), "USD", "order-123");
+        when(store.insertIfAbsentAndFind("same-key", command))
+                .thenReturn(payment(new BigDecimal("10.00")));
+
+        assertThrows(IdempotencyConflictException.class,
+                () -> service.create("same-key", command));
+    }
+
+    @Test
+    void reusedKeyWithDifferentMerchantReferenceIsRejected() {
+        var command = new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-changed");
+        when(store.insertIfAbsentAndFind("same-key", command))
+                .thenReturn(payment(new BigDecimal("10.00")));
+
+        assertThrows(IdempotencyConflictException.class,
+                () -> service.create("same-key", command));
+    }
+
+    @Test
+    void equivalentDecimalAmountsRemainIdempotent() {
+        var command = new CreatePaymentCommand(new BigDecimal("10.0"), "EUR", "order-123");
+        var stored = payment(new BigDecimal("10.00"));
+        when(store.insertIfAbsentAndFind("same-key", command)).thenReturn(stored);
+
+        assertEquals(stored.id(), service.create("same-key", command).id());
+    }
 }
