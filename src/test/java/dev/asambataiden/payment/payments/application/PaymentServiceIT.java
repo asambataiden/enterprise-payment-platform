@@ -174,4 +174,55 @@ class PaymentServiceIT {
                 "SELECT COUNT(*) FROM payments WHERE merchant_id = 'merchant-a' AND idempotency_key = ?",
                 Long.class, key));
     }
+
+    @Test
+    void differentMerchantsCanReuseKeyWithoutSharingPayment() {
+        String key = "multi-tenant-" + UUID.randomUUID();
+        var request = new CreatePaymentCommand(new BigDecimal("7.00"), "EUR", "shared-order");
+
+        var first = service.create("merchant-a", key, request);
+        var second = service.create("merchant-b", key, request);
+
+        assertNotEquals(first.id(), second.id());
+        assertEquals(first.id(), service.get("merchant-a", first.id()).id());
+        assertEquals(second.id(), service.get("merchant-b", second.id()).id());
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class,
+                () -> service.get("merchant-b", first.id()));
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class,
+                () -> service.get("merchant-a", second.id()));
+        assertEquals(Long.valueOf(2L), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?", Long.class, key));
+    }
+
+    @Test
+    void conflictingRetriesAreScopedToOwningMerchant() {
+        String key = "same-namespace-" + UUID.randomUUID();
+        var first = service.create("merchant-a", key,
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", "order-a"));
+        var second = service.create("merchant-b", key,
+                new CreatePaymentCommand(new BigDecimal("20.00"), "EUR", "order-b"));
+
+        assertNotEquals(first.id(), second.id());
+        assertThrows(IdempotencyConflictException.class,
+                () -> service.create("merchant-a", key,
+                        new CreatePaymentCommand(new BigDecimal("15.00"), "EUR", "order-a")));
+        assertEquals(first.id(), service.get("merchant-a", first.id()).id());
+        assertEquals(second.id(), service.get("merchant-b", second.id()).id());
+    }
+
+    @Test
+    void legacyUnassignedPaymentCannotBeReadByAnyMerchant() {
+        String key = "legacy-" + UUID.randomUUID();
+        UUID legacyId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO payments
+                  (id, idempotency_key, amount, currency, merchant_reference, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, legacyId, key, new BigDecimal("11.00"), "EUR", "legacy", "RECEIVED");
+
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class,
+                () -> service.get("merchant-a", legacyId));
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class,
+                () -> service.get("merchant-b", legacyId));
+    }
 }
