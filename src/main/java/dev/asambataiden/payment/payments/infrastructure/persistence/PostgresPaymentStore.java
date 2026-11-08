@@ -23,20 +23,20 @@ public class PostgresPaymentStore implements PaymentStore {
 
     @Override
     public PaymentResult insertIfAbsentAndFind(
-            String idempotencyKey, CreatePaymentCommand command) {
+            String merchantId, String idempotencyKey, CreatePaymentCommand command) {
         var candidate = new Payment(
-                idempotencyKey, command.amount(),
+                merchantId, idempotencyKey, command.amount(),
                 command.currency(), command.merchantReference());
         writer.insertIfAbsent(candidate);
-        var stored = repository.findByIdempotencyKey(idempotencyKey)
+        var stored = repository.findByMerchantIdAndIdempotencyKey(merchantId, idempotencyKey)
                 .orElseThrow(() -> new IllegalStateException(
                         "Idempotent payment missing after insert attempt"));
         return toResult(stored);
     }
 
     @Override
-    public Optional<PaymentResult> findById(UUID paymentId) {
-        return repository.findById(paymentId).map(PostgresPaymentStore::toResult);
+    public Optional<PaymentResult> findByMerchantIdAndId(String merchantId, UUID paymentId) {
+        return repository.findByMerchantIdAndId(merchantId, paymentId).map(PostgresPaymentStore::toResult);
     }
 
     private static PaymentResult toResult(Payment payment) {
