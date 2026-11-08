@@ -1,0 +1,18 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: paymentdb
+      POSTGRES_USER: payment_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-localdev_only_change_me}
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payment_app -d paymentdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - payment_pgdata:/var/lib/postgresql/data
+volumes:
+  payment_pgdata:
