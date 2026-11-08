@@ -122,7 +122,7 @@ class PaymentIntegrationTest {
                 Long count = jdbc.queryForObject(
                         "SELECT COUNT(*) FROM payments WHERE idempotency_key = ?",
                         Long.class, key);
-                assertEquals(1L, count);
+                assertEquals(Long.valueOf(1L), count);
             } finally {
                 executor.shutdownNow();
             }
