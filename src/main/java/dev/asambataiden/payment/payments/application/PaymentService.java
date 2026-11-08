@@ -3,8 +3,6 @@ package dev.asambataiden.payment.payments.application;
 import dev.asambataiden.payment.payments.infrastructure.persistence.Payment;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentRepository;
 import dev.asambataiden.payment.payments.infrastructure.persistence.PaymentJdbcWriter;
-import dev.asambataiden.payment.payments.api.dto.PaymentResponse;
-import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
 
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -24,7 +22,7 @@ public class PaymentService {
     }
 
     @Transactional
-    public PaymentResponse create(String key, CreatePaymentRequest request) {
+    public PaymentResult create(String key, CreatePaymentCommand request) {
         // PostgreSQL arbitrates concurrent inserts. A losing transaction waits for
         // the winner before ON CONFLICT returns no rows at READ COMMITTED isolation.
         Payment candidate = new Payment(key, request.amount(), request.currency(), request.merchantReference());
@@ -38,12 +36,12 @@ public class PaymentService {
                 || !stored.getMerchantReference().equals(request.merchantReference())) {
             throw new ResponseStatusException(CONFLICT, "Idempotency key already used with different request");
         }
-        return PaymentResponse.from(stored);
+        return PaymentResult.from(stored);
     }
 
     @Transactional(readOnly = true)
-    public PaymentResponse get(UUID id) {
-        return repository.findById(id).map(PaymentResponse::from)
+    public PaymentResult get(UUID id) {
+        return repository.findById(id).map(PaymentResult::from)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Payment not found"));
     }
 }
