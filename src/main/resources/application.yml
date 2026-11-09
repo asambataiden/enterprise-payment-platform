@@ -63,6 +63,7 @@ logging:
 
 # OpenAPI is off unless explicitly enabled for a trusted development environment.
 springdoc:
+  paths-to-match: /api/v1/**
   api-docs:
     enabled: ${PAYMENT_OPENAPI_ENABLED:false}
   swagger-ui:
