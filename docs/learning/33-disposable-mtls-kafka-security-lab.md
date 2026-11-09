@@ -1,7 +1,7 @@
 # Chapter 33 — Disposable mTLS Kafka Security Lab
 
 **Milestone:** 06.7Z — provision a reproducible security-test broker for Chapter 32.
-**Status:** Lab source and runner committed. Actual Docker execution, TLS negotiation and ACL-denial evidence are **pending**.
+**Evidence:** The November 9, 2026 local run established 2/2 successful secured-broker E2E tests, with no skipped tests. The lab was then torn down and generated credentials removed. See Chapter 35 for the execution chronology and evidence limits.
 
 ## Goal
 
@@ -42,21 +42,23 @@ locally generated directory. This is a deliberate local test limitation
 and is unsuitable for production. Use Docker/Kubernetes secrets with
 restricted filesystem permissions for a production design.
 
-## Start from the repository root
+## Run safely from the repository root or any tracked subdirectory
 
 Requires Docker Desktop / Compose, Java 25, Maven, OpenSSL and
 `keytool` from the JDK. No real money or payment messages are used.
 
 ```bash
-git pull --ff-only origin feat/payment-ledger
-cd ops/monitoring/kafka-security-lab
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" pull --ff-only origin feat/payment-ledger
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" clean verify
+cd "$ROOT/ops/monitoring/kafka-security-lab"
 bash generate-certificates.sh
 docker compose -f compose.yaml up -d
 bash provision-topics-acl.sh
 bash run-e2e.sh
 ```
 
-The expected Chapter 32 outcome is **two E2E passes**:
+The original Chapter 32 outcome was **two E2E passes**, verified on November 9, 2026. With Chapter 34's negative tests the current runner expects **five E2E passes**, pending a fresh test run:
 
 1. The restricted mTLS client successfully describes the allowed topic.
 2. It receives a real `TopicAuthorizationException` for the denied topic.
@@ -136,13 +138,11 @@ sequenceDiagram
 mvn -B --no-transfer-progress clean verify
 ```
 
-This default suite should remain at **152** passing tests if unchanged
-(85 unit and 67 integration). The external two-test E2E runs only when
-explicitly selected and enabled by `run-e2e.sh`. It is deliberately **not**
-part of the default regression count.
-
-We have not executed Docker or Maven against the secured lab here. A
-successful code commit is **not** proof of TLS/ACL functionality.
+The last recorded successful full regression suite contained **152** passing tests
+(85 unit and 67 integration). The five-test external E2E set is selected
+explicitly by `run-e2e.sh` and is **not** part of the default regression count.
+Two positive E2E cases previously passed. The new three negative cases are not
+verified by the currently supplied execution output.
 
 ## Interview preparation
 
