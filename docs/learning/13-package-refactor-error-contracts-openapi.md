@@ -85,6 +85,10 @@ sequenceDiagram
 7. Why are Spring Security 401/403 responses not automatically formatted by `@RestControllerAdvice`?
 8. What tests prove source moves, API errors and docs access have preserved their contracts?
 
+## Verified implementation baseline
+
+[Java CI #329](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42569108925) passed **109 tests** (52 fast + 57 integration), including 2 generated OpenAPI contract tests, at commit `f9967ee`; [Security CI #243](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42569108937) passed Trivy and Gitleaks at that same commit. A later HTTP-level assertion commit requires its own check before this can be attributed to the new head.
+
 ## Evidence checklist
 
 - Existing 103 baseline tests must remain passing.
