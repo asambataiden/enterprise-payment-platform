@@ -21,7 +21,8 @@ Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILU
 11. [Opt-in Kafka listener and typed projection](10-opt-in-kafka-listener-and-projection.md) — manual ACK, fail-stop and typed local database effects.
 12. [Kafka poison evidence and recovery](11-kafka-poison-evidence-and-operator-recovery.md) — persistent observations, operator runbook and no-skip policy.
 13. [Real Kafka container lifecycle and metrics](12-kafka-container-lifecycle-and-metrics.md) — successful/poison startup, stop, counters and evidence limits.
-14. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
+14. [Package boundaries, API error contracts and OpenAPI](13-package-refactor-error-contracts-openapi.md) — practical refactoring, schema stability and security.
+15. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
 
 ## Repeatable learning method
 
