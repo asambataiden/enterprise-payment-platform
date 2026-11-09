@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 for required_file in generated/reader.properties generated/store.password \
   generated/lab-reader.p12 generated/lab-producer.p12 generated/lab-consumer.p12 \
+  generated/lab-idempotent-producer.p12 \
   generated/truststore.p12 generated/untrusted-truststore.p12; do
   if [[ ! -r "$required_file" ]]; then
     echo "Missing ephemeral lab prerequisite: $required_file" >&2
@@ -26,6 +27,7 @@ export PAYMENT_SECURE_KAFKA_ROGUE_TRUSTSTORE_LOCATION="$PWD/generated/untrusted-
 export PAYMENT_SECURE_KAFKA_ROGUE_TRUSTSTORE_PASSWORD="$PAYMENT_SECURE_KAFKA_TRUSTSTORE_PASSWORD"
 export PAYMENT_SECURE_KAFKA_PRODUCER_KEYSTORE_LOCATION="$PWD/generated/lab-producer.p12"
 export PAYMENT_SECURE_KAFKA_CONSUMER_KEYSTORE_LOCATION="$PWD/generated/lab-consumer.p12"
+export PAYMENT_SECURE_KAFKA_IDEMPOTENT_PRODUCER_KEYSTORE_LOCATION="$PWD/generated/lab-idempotent-producer.p12"
 # Run Maven from repository root. No credentials in argv or output.
 cd ../../..
-exec mvn -B --no-transfer-progress -Dtest=SecuredKafkaBrokerE2E,KafkaNegativeSecurityE2E,KafkaPrincipalAuthorizationE2E test
+exec mvn -B --no-transfer-progress -Dtest=SecuredKafkaBrokerE2E,KafkaNegativeSecurityE2E,KafkaPrincipalAuthorizationE2E,KafkaIdempotentProducerAuthorizationE2E test
