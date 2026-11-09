@@ -1,6 +1,7 @@
 package dev.asambataiden.payment.payments.messaging.kafka.producer;
 import dev.asambataiden.payment.payments.outbox.SupervisedPaymentOutboxWorker;
 import dev.asambataiden.payment.payments.outbox.PaymentOutboxDispatcher;
+import dev.asambataiden.payment.payments.messaging.kafka.security.KafkaTransportSecurity;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,11 +26,8 @@ public class KafkaPaymentTransportConfiguration {
         if (bootstrap.isBlank()) {
             throw new IllegalStateException("KAFKA_BOOTSTRAP_SERVERS is required when Kafka is enabled");
         }
-        Object effectiveProtocol = kafka.getProducerFactory()
-                .getConfigurationProperties().get("security.protocol");
-        if (!"SASL_SSL".equals(effectiveProtocol) && !"SSL".equals(effectiveProtocol)) {
-            throw new IllegalStateException("Kafka producer must use SASL_SSL or SSL");
-        }
+        KafkaTransportSecurity.validate(
+                kafka.getProducerFactory().getConfigurationProperties());
         Object effectiveAcks = kafka.getProducerFactory()
                 .getConfigurationProperties().get("acks");
         if (!"all".equals(String.valueOf(effectiveAcks)) && !"-1".equals(String.valueOf(effectiveAcks))) {
