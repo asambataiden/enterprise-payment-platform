@@ -120,9 +120,9 @@ states in the initial Chapter 35 chronology, without changing that history.
 - The unauthorized Write test asserted
   `TopicAuthorizationException` rather than treating network timeout
   as successful authorization denial. The test finished without failure.
-- The broker and private lab credentials are **not shown cleaned up**
-  in this uploaded execution log. Teardown must be checked separately
-  before marking this particular lab session fully closed.
+- **Post-test cleanup verified from a separate terminal transcript:** `docker compose -f compose.yaml down -v` reported removal of the broker container and Docker network. The operator inspected `generated/` (28 directory entries including CA keys, broker/reader PKCS12 keystores, password files and unrelated test-CA material), then ran `rm -r generated/` without a reported error. The output supports normal successful deletion, although a subsequent `test ! -e generated` or `ls` was not captured.
+- **Security follow-up:** `admin.properties`, `store.password`, `broker.p12` and `truststore.p12` had mode `0644` while temporarily created. These lab-only files contained sensitive material or trust credentials. Tighten permissions and mount/UID arrangements in the next lab-hardening increment; do not copy this convention into production.
+- **State classification:** Milestone 06.7AA application regression and secured E2E tests are verified; lab teardown and credential cleanup completed according to the terminal transcript. No claim is made about backups, iCloud synchronization or forensic erasure of deleted key material.
 
 ### Engineering takeaway
 
