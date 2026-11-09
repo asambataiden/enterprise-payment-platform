@@ -7,6 +7,7 @@ import dev.asambataiden.payment.payments.domain.PaymentState;
 import java.math.BigDecimal;
 import dev.asambataiden.payment.testinfra.KafkaTestSupport;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
