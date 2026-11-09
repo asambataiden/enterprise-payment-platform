@@ -86,6 +86,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [24 — Kafka ACK failure and idempotent recovery](24-kafka-ack-failure-idempotent-recovery.md)
 - [25 — Kafka consumer recovery assessment and operator triage](25-kafka-consumer-recovery-assessment.md)
 - [26 — Kafka listener lifecycle observability](26-kafka-listener-lifecycle-observability.md)
+- [27 — Kafka consumer lag assessment and alerting design](27-kafka-consumer-lag-and-alerting-design.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
