@@ -17,7 +17,8 @@ Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILU
 7. Existing focused engineering contracts: [JWT trust](../security/jwt-resource-server.md), [merchant isolation](../security/merchant-isolation.md), [outbox delivery](../architecture/outbox-delivery-contract.md), [Kafka contract](../architecture/kafka-integration-contract.md), [PR #1 review](../reviews/pr-0001-release-readiness.md).
 8. [Architecture quality and test reuse](07-architecture-quality-and-test-reuse.md) — practical refactor, dependency rules and tradeoffs.
 9. [Kafka consumer trust and inbox](08-kafka-consumer-trust-and-inbox.md) — real-broker contract checks, replays and trust boundaries.
-10. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
+10. [Kafka offsets, fail-stop recovery and polling](09-kafka-consumer-offsets-and-recovery.md) — why commit after the DB transaction, how restarts replay.
+11. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
 
 ## Repeatable learning method
 
