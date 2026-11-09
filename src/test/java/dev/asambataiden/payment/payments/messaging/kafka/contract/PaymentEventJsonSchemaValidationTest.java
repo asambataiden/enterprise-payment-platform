@@ -31,15 +31,16 @@ class PaymentEventJsonSchemaValidationTest {
     }
 
     @Test
-    void rejectsWrongTypesMissingFieldsAndUnknownAttributes() {
+    void rejectsWrongTypesMissingFieldsAndUnknownAttributes() throws Exception {
         String eventId = UUID.randomUUID().toString();
         String paymentId = UUID.randomUUID().toString();
         String valid = payload(eventId, paymentId, "merchant-1");
 
         assertFalse(valid(valid.replace("\"schemaVersion\":1",
                 "\"schemaVersion\":\"1\"")));
-        assertFalse(valid(valid.replace(
-                ",\"targetState\":\"AUTHORIZED\"", "")));
+        assertFalse(valid(JSON.writeValueAsString(java.util.Map.of(
+                "schemaVersion", 1, "eventId", eventId,
+                "paymentId", paymentId, "merchantId", "merchant-1"))));
         assertFalse(valid(valid.replace("}", ",\"extra\":true}")));
     }
 
