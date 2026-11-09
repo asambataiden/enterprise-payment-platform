@@ -18,7 +18,8 @@ Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILU
 8. [Architecture quality and test reuse](07-architecture-quality-and-test-reuse.md) — practical refactor, dependency rules and tradeoffs.
 9. [Kafka consumer trust and inbox](08-kafka-consumer-trust-and-inbox.md) — real-broker contract checks, replays and trust boundaries.
 10. [Kafka offsets, fail-stop recovery and polling](09-kafka-consumer-offsets-and-recovery.md) — why commit after the DB transaction, how restarts replay.
-11. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
+11. [Opt-in Kafka listener and typed projection](10-opt-in-kafka-listener-and-projection.md) — manual ACK, fail-stop and typed local database effects.
+12. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
 
 ## Repeatable learning method
 
