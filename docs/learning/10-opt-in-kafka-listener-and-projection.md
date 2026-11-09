@@ -69,4 +69,4 @@ The listener's **integration test directly invokes the method using a real Kafka
 - [Spring Kafka manual acknowledgment](https://docs.spring.io/spring-kafka/reference/kafka/receiving-messages/message-listener-container.html)
 - [Spring Kafka container stopping handler](https://docs.spring.io/spring-kafka/reference/kafka/annotation-error-handling.html)
 
-**Verification:** Record the final SHA and Java/Security CI after they complete; passing historical tests must not be treated as proof of this incremental change.
+**Verified implementation baseline:** commit `3bc0513` — [Java CI #259](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42564535351) passed **99/99** tests (48 fast and 51 integration); two new listener tests passed, including Kafka/PostgreSQL observations and negative ACK behavior. [Security CI #173](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42564535329) passed Trivy and Gitleaks. This evidence refers to that implementation SHA; any later documentation commit has its own checks.
