@@ -2,6 +2,12 @@
 
 > **Educational simulated payment-intake service** built with Java 25, Spring Boot 4.1.2, PostgreSQL 17, Flyway and Maven. It does **not** move funds or integrate with a regulated payment processor and is **not production ready**.
 
+## Start here — learn the entire capstone
+
+**New:** [Learning and Interview Handbook](docs/learning/README.md) · [Full roadmap from inception](docs/roadmap/enterprise-payment-platform.md) · [Bird's-eye architecture and module views](docs/architecture/system-overview.md) · [Sequence diagrams and use cases](docs/architecture/runtime-scenarios.md) · [Modularity, DRY and reusable library policy](docs/architecture/modularity-and-reuse.md) · [Senior engineer interview workbook](docs/learning/interview-workbook.md).
+
+Follow the roadmap chronologically; every milestone explains **what**, **why**, **where it fits**, **how**, tradeoffs, tests, failures and interview arguments. Diagrams distinguish running functionality from unimplemented target components. Documentation changes travel with code in the same PR.
+
 ## Verified capabilities
 
 - Hexagonal application/persistence boundary with a PostgreSQL-backed payment store.
@@ -64,7 +70,7 @@ curl -i http://localhost:8080/api/v1/payments \
 mvn -B clean verify
 ```
 
-Milestone 05.4 was verified locally with **51/51 tests passing** (35 Surefire tests and 16 Failsafe integration tests) and in GitHub CI run #83. **Milestone 05.5 configuration and security-scanning changes must be independently verified.** New `Security CI` scans checked-out source and discovered dependencies using Trivy; it does not replace historical Git secret scanning, a full SBOM, CodeQL or security review.
+**Last feature baseline** (commit `98ace4d`, milestone 06.6): [Java CI #179](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42556896756) **89/89 tests** (46 fast + 43 PostgreSQL/Kafka integration); [Security CI #93](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42556896796) passed. Documentation-only commits after this baseline require a fresh CI check on the latest SHA. Tests include a real **test Kafka broker** and PostgreSQL but do not validate a deployed identity provider, production TLS/SASL broker, or financial settlement. Trivy and Gitleaks are useful but are not a complete software-supply-chain or security assessment.
 
 ## Further hardening required
 
@@ -75,6 +81,16 @@ Milestone 05.4 was verified locally with **51/51 tests passing** (35 Surefire te
 - Resolve outstanding findings in [PR #1 release readiness](docs/reviews/pr-0001-release-readiness.md) before treating this as production capable.
 
 ## Engineering documentation
+
+The [learning handbook](docs/learning/README.md) is the documentation entry point. It links all milestone and scenario records without duplicating them.
+
+- [Complete incremental roadmap](docs/roadmap/enterprise-payment-platform.md)
+- [System context, container, component and data diagrams](docs/architecture/system-overview.md)
+- [Runtime use cases and sequence diagrams](docs/architecture/runtime-scenarios.md)
+- [Modules, reuse and future library extraction](docs/architecture/modularity-and-reuse.md)
+- [Interview workbook](docs/learning/interview-workbook.md)
+- [Outbox delivery contract](docs/architecture/outbox-delivery-contract.md)
+- [Kafka transport contract](docs/architecture/kafka-integration-contract.md)
 
 - [Merchant isolation and Flyway upgrade](docs/security/merchant-isolation.md)
 - [JWT configuration and trust boundary](docs/security/jwt-resource-server.md)
