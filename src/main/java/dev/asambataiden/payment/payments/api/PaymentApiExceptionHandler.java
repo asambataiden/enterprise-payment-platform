@@ -3,7 +3,7 @@ package dev.asambataiden.payment.payments.api;
 import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
+import dev.asambataiden.payment.payments.api.error.PaymentApiErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -22,19 +22,20 @@ public class PaymentApiExceptionHandler {
 
     @ExceptionHandler(IdempotencyConflictException.class)
     ResponseEntity<ProblemDetail> idempotencyConflict(IdempotencyConflictException exception) {
-        return domainError(HttpStatus.CONFLICT, "Conflict", exception.getMessage());
+        return domainError(HttpStatus.CONFLICT, "Conflict", exception.getMessage(), PaymentApiErrorCode.IDEMPOTENCY_CONFLICT);
     }
 
     @ExceptionHandler(PaymentNotFoundException.class)
     ResponseEntity<ProblemDetail> paymentNotFound(PaymentNotFoundException exception) {
-        return domainError(HttpStatus.NOT_FOUND, "Not Found", exception.getMessage());
+        return domainError(HttpStatus.NOT_FOUND, "Not Found", exception.getMessage(), PaymentApiErrorCode.PAYMENT_NOT_FOUND);
     }
 
-    private ResponseEntity<ProblemDetail> domainError(HttpStatus status, String title, String message) {
+    private ResponseEntity<ProblemDetail> domainError(HttpStatus status, String title, String message, PaymentApiErrorCode code) {
         var detail = ProblemDetail.forStatus(status);
         detail.setTitle(title);
         detail.setDetail(message);
-        detail.setType(URI.create("about:blank"));
+        detail.setType(code.type());
+        detail.setProperty("code", code.value());
         return ResponseEntity.status(status).body(detail);
     }
 
@@ -42,7 +43,8 @@ public class PaymentApiExceptionHandler {
     ResponseEntity<ProblemDetail> knownHttpError(ResponseStatusException exception) {
         var status = exception.getStatusCode();
         var detail = ProblemDetail.forStatus(status);
-        detail.setTitle(status.value() == 409 ? "Conflict" :
+        detail.setTitle(status.value() == 403 ? "Forbidden" :
+                status.value() == 409 ? "Conflict" :
                 status.value() == 404 ? "Not Found" : "Bad Request");
         detail.setDetail(exception.getReason());
         detail.setType(URI.create("about:blank"));
