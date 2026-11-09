@@ -120,6 +120,8 @@ class OptInKafkaPaymentListenerIT {
         var record = new ConsumerRecord<String, String>(topic, 1, 77L, "key", "{invalid" + secretMarker);
         var ack = mock(Acknowledgment.class);
         var listener = listener(topic);
+        int projectionCountBefore = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payment_event_projection", Integer.class);
 
         assertThrows(IllegalArgumentException.class, () -> listener.onMessage(record, ack));
         assertThrows(IllegalArgumentException.class, () -> listener.onMessage(record, ack));
@@ -134,7 +136,7 @@ class OptInKafkaPaymentListenerIT {
         assertEquals(2, ((Number) counts.get("occurrence_count")).intValue());
         assertEquals("INVALID_CONTRACT", counts.get("failure_category"));
         assertEquals(64, ((String) counts.get("payload_sha256")).length());
-        assertEquals(0, jdbc.queryForObject(
+        assertEquals(projectionCountBefore, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM payment_event_projection", Integer.class));
     }
 
