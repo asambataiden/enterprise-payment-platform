@@ -58,7 +58,7 @@ bash provision-topics-acl.sh
 bash run-e2e.sh
 ```
 
-The original Chapter 32 outcome was **two E2E passes**, verified on November 9, 2026. With Chapter 34's negative tests the current runner expects **five E2E passes**, pending a fresh test run:
+The original Chapter 32 outcome was **two E2E passes**, verified on November 9, 2026. With Chapter 34, five E2E cases were verified on November 9, 2026. Chapter 36 now adds four producer/consumer ACL cases; the current runner expects **nine E2E passes**, pending fresh verification:
 
 1. The restricted mTLS client successfully describes the allowed topic.
 2. It receives a real `TopicAuthorizationException` for the denied topic.
@@ -139,10 +139,11 @@ mvn -B --no-transfer-progress clean verify
 ```
 
 The last recorded successful full regression suite contained **152** passing tests
-(85 unit and 67 integration). The five-test external E2E set is selected
+(85 unit and 67 integration). The nine-test external E2E set is selected
 explicitly by `run-e2e.sh` and is **not** part of the default regression count.
-Two positive E2E cases previously passed. The new three negative cases are not
-verified by the currently supplied execution output.
+Two positive E2E cases previously passed. The three negative cases subsequently passed on November 9, 2026 (see
+Chapters 34–35). Four newly added producer/consumer ACL cases remain
+unverified, so the current nine-test runner must be executed separately.
 
 ## Interview preparation
 
