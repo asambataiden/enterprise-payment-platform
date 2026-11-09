@@ -97,6 +97,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [33 — Disposable mTLS Kafka security lab and ACL verification](33-disposable-mtls-kafka-security-lab.md)
 - [34 — Kafka negative mTLS and authorization security tests](34-kafka-negative-security-tests.md)
 - [35 — Execution evidence, operator errors and retrospective learning](35-execution-evidence-and-retrospective-runbook.md)
+- [36 — Kafka producer and consumer-group least-privilege ACLs](36-kafka-producer-consumer-acls.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
