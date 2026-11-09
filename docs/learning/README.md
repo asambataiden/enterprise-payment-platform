@@ -6,6 +6,18 @@
 
 Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILURE MODES**, **PROOF**, **INDUSTRY CONTEXT**, and **HOW TO EXPLAIN IT IN AN INTERVIEW**. Every meaningful change to implementation or infrastructure must update the relevant architecture, scenario, ADR, evidence and operations documentation **in the same PR**. This documentation is versioned alongside the code.
 
+### Foundational chapters (01–06)
+
+These chapters reconstruct the originally implemented foundations. They complement
+the guided labs rather than replacing architectural records or tests.
+
+1. [01 — Problem domain and modular monolith](01-problem-domain-and-modular-monolith.md)
+2. [02 — HTTP contracts and application boundaries](02-http-contracts-and-application-boundaries.md)
+3. [03 — PostgreSQL, Flyway, money and idempotency](03-postgresql-flyway-money-and-idempotency.md)
+4. [04 — JWT merchant security and trust boundaries](04-jwt-merchant-security-and-trust-boundaries.md)
+5. [05 — Quality gates, observability and DevSecOps](05-quality-gates-observability-and-devsecops.md)
+6. [06 — Ledger, atomic transitions and outbox foundations](06-ledger-atomic-transitions-and-outbox-fundamentals.md)
+
 ### Learning sequence (follow in order)
 
 1. [Guided labs: from zero through Kafka](guided-labs.md) — hands-on reading, exercises, expected boundaries and interview checkpoints.
@@ -60,6 +72,18 @@ There is no single universal best architecture. Record the **requirements, const
 
 We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introduction) and [arc42's architecture concerns](https://arc42.org/overview/) as navigation conventions, not as an excuse to write repetitive documents. The [transactional outbox](https://microservices.io/patterns/data/transactional-outbox) is the external reference for message publication reliability; our exact guarantees are established by **our own tests**.
 
-## Current verification baseline
+### Recent focused chapters (15–20)
 
-On `feat/payment-ledger`, GitHub Java CI #179 and Security CI #93 passed at implementation commit `98ace4d`: **89 tests** (46 fast, 43 integration). Additional documentation-only commits are **not covered by that historical SHA**; always inspect checks on the current head. No live Kafka consumer or real payment processing exists. PR #1 and stacked PR #2 remain draft.
+- [15 — Kafka producer contract governance](15-kafka-event-contract-governance.md)
+- [16 — Kafka consumer contract compatibility](16-kafka-consumer-contract-compatibility.md)
+- [17 — Strict Kafka JSON parsing](17-kafka-strict-json-parsing.md)
+- [18 — Jackson dependency governance](18-jackson-dependency-governance.md)
+- [19 — Merchant identifier object invariants](19-merchant-identifier-contract-consistency.md)
+- [20 — Canonical Kafka UUID validation](20-kafka-canonical-uuid-validation.md)
+
+The foundational chapters are retrospective teaching material. Recheck the current
+repository implementation and tests before asserting any behavior as verified.
+
+## Historical verification evidence
+
+On `feat/payment-ledger`, GitHub Java CI #179 and Security CI #93 passed at implementation commit `98ace4d`: **89 tests** (46 fast, 43 integration). Additional documentation-only commits are **not covered by that historical SHA**; always inspect checks on the current head. That 89-test count is historical, not the current baseline. Subsequent changes introduced an opt-in Kafka consumer boundary and additional tests. Consult current GitHub checks and local Maven reports for up-to-date implementation evidence; there is still no real funds movement.
