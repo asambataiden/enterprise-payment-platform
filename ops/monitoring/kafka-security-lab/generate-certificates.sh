@@ -49,6 +49,15 @@ keytool -importcert -noprompt -alias payment-kafka-lab-ca \
   -file "$OUT/ca.crt" -keystore "$OUT/truststore.p12" \
   -storetype PKCS12 -storepass "$STORE_PASSWORD" >/dev/null 2>&1
 
+# Create an unrelated CA truststore to prove the broker certificate is NOT
+# accepted when the correct trust anchor is unavailable.
+openssl req -x509 -newkey rsa:3072 -sha256 -nodes \
+  -subj "/CN=payment-kafka-untrusted-test-ca" -days 2 \
+  -keyout "$OUT/untrusted-ca.key" -out "$OUT/untrusted-ca.crt" >/dev/null 2>&1
+keytool -importcert -noprompt -alias unrelated-test-ca \
+  -file "$OUT/untrusted-ca.crt" -keystore "$OUT/untrusted-truststore.p12" \
+  -storetype PKCS12 -storepass "$STORE_PASSWORD" >/dev/null 2>&1
+
 cat > "$OUT/admin.properties" <<EOF
 bootstrap.servers=localhost:9093
 security.protocol=SSL
