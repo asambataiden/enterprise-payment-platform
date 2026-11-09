@@ -12,6 +12,12 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.common.TopicPartition;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -22,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.AcknowledgingMessageListener;
@@ -59,6 +64,12 @@ class KafkaListenerContainerLifecycleIT {
 
     private KafkaMessageListenerContainer<String, String> container(
             String topic, String group, SimpleMeterRegistry metrics) {
+        return container(topic, group, metrics, jdbc);
+    }
+
+    private KafkaMessageListenerContainer<String, String> container(
+            String topic, String group, SimpleMeterRegistry metrics,
+            JdbcTemplate projectionJdbc) {
         Map<String, Object> config = new HashMap<>();
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers());
         config.put(ConsumerConfig.GROUP_ID_CONFIG, group);
@@ -74,7 +85,7 @@ class KafkaListenerContainerLifecycleIT {
         var listener = new OptInKafkaPaymentListener(
                 new LocalKafkaPaymentRecordProcessor(topic,
                         new TrustedPaymentEventConsumer(jdbc, manager)),
-                new LocalPaymentEventProjection(jdbc),
+                new LocalPaymentEventProjection(projectionJdbc),
                 new KafkaConsumerFailureObservations(jdbc, manager),
                 new KafkaConsumerMetrics(metrics));
         props.setMessageListener((AcknowledgingMessageListener<String, String>)
@@ -126,6 +137,139 @@ class KafkaListenerContainerLifecycleIT {
             meters.close();
         }
         assertFalse(listener.isRunning());
+    }
+
+    @Test
+    void transientProjectionFailureStopsThenRestartReplaysAndCommitsExactlyOnce()
+            throws Exception {
+        String topic = "payment.simulated.lifecycle.recovery";
+        KafkaTestSupport.createTopic(kafka, topic, 1);
+        String group = "recovery-drill-" + UUID.randomUUID();
+        String merchant = "recovery-drill-merchant";
+        UUID paymentId = payments.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("19.00"), "EUR", "recovery-drill")).id();
+        UUID eventId = UUID.randomUUID();
+        transitions.advance(merchant, paymentId, eventId, PaymentState.AUTHORIZED);
+
+        // Inject a transient local projection outage *inside* the trusted inbox transaction.
+        // Kafka holds an immutable, valid event; remediation is to restore the DB
+        // dependency, NOT alter or skip the record.
+        JdbcTemplate brokenProjection = new JdbcTemplate() {
+            @Override
+            public int update(String sql, Object... args) {
+                throw new DataAccessResourceFailureException(
+                        "Controlled projection dependency outage");
+            }
+        };
+
+        var producer = KafkaTestSupport.newProducerFactory(kafka);
+        var failedMetrics = new SimpleMeterRegistry();
+        var repairedMetrics = new SimpleMeterRegistry();
+        var failed = container(topic, group, failedMetrics, brokenProjection);
+        var repaired = container(topic, group, repairedMetrics);
+        var partition = new TopicPartition(topic, 0);
+        try (Admin admin = Admin.create(Map.of(
+                AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, kafka.getBootstrapServers()))) {
+            try {
+                failed.start();
+                new KafkaPaymentEventPublisher(new KafkaTemplate<>(producer), topic).publish(
+                        new PaymentOutboxEvent(1, eventId, merchant, paymentId, "AUTHORIZED"));
+
+                until(() -> !failed.isRunning(),
+                        "Transient processing failure must stop the listener");
+                until(() -> jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM kafka_consumer_failure_observations
+                        WHERE consumer_name='simulated-projection-v1' AND topic=?
+                          AND partition_number=0 AND record_offset=0
+                          AND failure_category='PROCESSING_FAILURE'
+                        """, Integer.class, topic) == 1,
+                        "Failure observation must survive the rolled-back inbox transaction");
+
+                var forensic = new KafkaConsumerRecoveryAssessment(jdbc)
+                        .find("simulated-projection-v1", topic, 0, 0)
+                        .orElseThrow();
+                assertEquals("PROCESSING_FAILURE", forensic.failureCategory());
+                assertEquals(64, forensic.payloadSha256().length());
+                assertEquals(0, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_event_projection
+                        WHERE merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+                assertEquals(0, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_inbox
+                        WHERE consumer_name='simulated-projection-v1'
+                          AND merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+
+                var before = admin.listConsumerGroupOffsets(group)
+                        .partitionsToOffsetAndMetadata().get(10, TimeUnit.SECONDS);
+                assertTrue(!before.containsKey(partition)
+                                || before.get(partition) == null
+                                || before.get(partition).offset() == 0,
+                        "Failed record must not be acknowledged");
+
+                // Operator reviewed the evidence and restored the dependency.
+                // The same group and untouched offset replay the original event.
+                failed.stop();
+                repaired.start();
+                until(() -> jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_event_projection
+                        WHERE merchant_id=? AND event_id=? AND target_state='AUTHORIZED'
+                        """, Integer.class, merchant, eventId) == 1,
+                        "Restart must apply the original Kafka event");
+                until(() -> {
+                    try {
+                        var offsets = admin.listConsumerGroupOffsets(group)
+                                .partitionsToOffsetAndMetadata().get(3, TimeUnit.SECONDS);
+                        return offsets.containsKey(partition) && offsets.get(partition) != null
+                                && offsets.get(partition).offset() == 1;
+                    } catch (Exception unavailable) {
+                        return false;
+                    }
+                }, "Kafka group must commit the original record's next offset");
+
+                assertEquals(1, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_inbox
+                        WHERE consumer_name='simulated-projection-v1'
+                          AND merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+                assertEquals(1, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_event_projection
+                        WHERE merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+
+                // Publish a duplicate envelope at the next broker offset and
+                // prove that the same local inbox prevents a duplicate effect.
+                new KafkaPaymentEventPublisher(new KafkaTemplate<>(producer), topic).publish(
+                        new PaymentOutboxEvent(1, eventId, merchant, paymentId, "AUTHORIZED"));
+                until(() -> {
+                    try {
+                        var offsets = admin.listConsumerGroupOffsets(group)
+                                .partitionsToOffsetAndMetadata().get(3, TimeUnit.SECONDS);
+                        return offsets.containsKey(partition) && offsets.get(partition) != null
+                                && offsets.get(partition).offset() == 2;
+                    } catch (Exception unavailable) {
+                        return false;
+                    }
+                }, "Duplicated envelope must be acknowledged as a replay");
+                assertEquals(1, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_event_projection
+                        WHERE merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+                assertEquals(1, jdbc.queryForObject("""
+                        SELECT COUNT(*) FROM payment_inbox
+                        WHERE consumer_name='simulated-projection-v1'
+                          AND merchant_id=? AND event_id=?
+                        """, Integer.class, merchant, eventId));
+                assertEquals(1.0, repairedMetrics.get("payment.kafka.consumer.records")
+                        .tag("outcome", "replayed").counter().count());
+            } finally {
+                failed.stop();
+                repaired.stop();
+                producer.destroy();
+                failedMetrics.close();
+                repairedMetrics.close();
+            }
+        }
     }
 
     @Test
