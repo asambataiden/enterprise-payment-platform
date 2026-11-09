@@ -15,7 +15,8 @@ Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILU
 5. [Reusable code and module strategy](../architecture/modularity-and-reuse.md) — how to avoid repeated logic and when **not** to extract another library.
 6. Existing design records: [ADR-0001](../adr/0001-modular-monolith.md), [ADR-0002](../adr/0002-money-and-idempotency.md), [ADR-0003](../adr/0003-simulated-ledger-and-payment-state-machine.md).
 7. Existing focused engineering contracts: [JWT trust](../security/jwt-resource-server.md), [merchant isolation](../security/merchant-isolation.md), [outbox delivery](../architecture/outbox-delivery-contract.md), [Kafka contract](../architecture/kafka-integration-contract.md), [PR #1 review](../reviews/pr-0001-release-readiness.md).
-8. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
+8. [Architecture quality and test reuse](07-architecture-quality-and-test-reuse.md) — practical refactor, dependency rules and tradeoffs.
+9. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
 
 ## Repeatable learning method
 
