@@ -5,3 +5,6 @@ target/
 .env
 *.iml
 *.log
+
+# Ephemeral local Kafka mTLS identities, passwords and broker configuration.
+ops/monitoring/kafka-security-lab/generated/
