@@ -25,6 +25,11 @@ spring:
         delivery.timeout.ms: 10000
         request.timeout.ms: 5000
         max.block.ms: 5000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      auto-offset-reset: none
     admin:
       auto-create: false
     listener:
@@ -34,6 +39,9 @@ payment:
     kafka:
       enabled: ${PAYMENT_KAFKA_ENABLED:false}
       topic: ${PAYMENT_KAFKA_TOPIC:payment.simulated.events.v1}
+      consumer:
+        enabled: ${PAYMENT_KAFKA_CONSUMER_ENABLED:false}
+        group-id: ${PAYMENT_KAFKA_CONSUMER_GROUP_ID:}
 
 management:
   endpoints:
