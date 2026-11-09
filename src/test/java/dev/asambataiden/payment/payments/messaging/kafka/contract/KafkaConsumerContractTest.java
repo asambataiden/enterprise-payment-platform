@@ -117,6 +117,49 @@ class KafkaConsumerContractTest {
         );
     }
 
+
+    @Test
+    void rejectsDuplicateMerchantIdentifiers() throws Exception {
+        var event = event();
+        String payload = json.writeValueAsString(event);
+
+        String duplicated = payload.replace(
+                "\"merchantId\":\"merchant-contract-test\"",
+                "\"merchantId\":\"merchant-contract-test\","
+                + "\"merchantId\":\"merchant-contract-test\""
+        );
+
+        assertNotEquals(payload, duplicated);
+        assertRejected(duplicated, key(event));
+    }
+
+    @Test
+    void rejectsNullAndIncorrectFieldTypes() throws Exception {
+        var event = event();
+        String payload = json.writeValueAsString(event);
+
+        String nullMerchant = payload.replace(
+                "\"merchantId\":\"merchant-contract-test\"",
+                "\"merchantId\":null"
+        );
+
+        String stringVersion = payload.replace(
+                "\"schemaVersion\":1",
+                "\"schemaVersion\":\"1\""
+        );
+
+        assertNotEquals(payload, nullMerchant);
+        assertNotEquals(payload, stringVersion);
+
+        assertRejected(nullMerchant, key(event));
+        assertRejected(stringVersion, key(event));
+    }
+
+    @Test
+    void rejectsOversizedUtf8PayloadBeforeTrustedConsumer() {
+        assertRejected("€".repeat(1366), "merchant:payment");
+    }
+
     private void assertRejected(
             String payload,
             String recordKey

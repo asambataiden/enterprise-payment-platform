@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import tools.jackson.core.StreamReadFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -23,7 +24,9 @@ public final class LocalKafkaPaymentRecordProcessor {
     private static final Set<String> FIELDS =
             Set.of("schemaVersion", "eventId", "merchantId", "paymentId", "targetState");
 
-    private final JsonMapper json = JsonMapper.builder().build();
+    private final JsonMapper json = JsonMapper.builder()
+            .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+            .build();
     private final String topic;
     private final TrustedPaymentEventConsumer consumer;
 
