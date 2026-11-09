@@ -85,6 +85,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [23 — Fail-closed Kafka offset configuration](23-fail-closed-kafka-offset-configuration.md)
 - [24 — Kafka ACK failure and idempotent recovery](24-kafka-ack-failure-idempotent-recovery.md)
 - [25 — Kafka consumer recovery assessment and operator triage](25-kafka-consumer-recovery-assessment.md)
+- [26 — Kafka listener lifecycle observability](26-kafka-listener-lifecycle-observability.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
