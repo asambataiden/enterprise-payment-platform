@@ -10,7 +10,9 @@ public record PaymentOutboxEvent(
         if (schemaVersion != 1) throw new IllegalArgumentException("Unsupported event version");
         Objects.requireNonNull(eventId);
         Objects.requireNonNull(paymentId);
-        if (merchantId == null || merchantId.isBlank()) throw new IllegalArgumentException("Missing merchant");
+        if (merchantId == null || merchantId.isBlank() || merchantId.length() > 128) {
+            throw new IllegalArgumentException("Invalid merchant identifier");
+        }
         if (targetState == null || targetState.isBlank()) throw new IllegalArgumentException("Missing state");
     }
 }
