@@ -245,12 +245,31 @@ in the context of explicit assertions, not by grepping for the word ERROR.
 
 **Evidence limit:** only this local developer execution is supported;
 this does not prove production Kafka authorization, real payment movement,
-producer idempotence permissions or certificate rotation. The submitted
-log does not show cleanup of the new lab session, so teardown remains
-pending separately.
+producer idempotence permissions or certificate rotation. The initial execution
+log did not show cleanup; a subsequent terminal transcript confirms that
+`docker compose -f compose.yaml down -v` removed the broker container and
+Docker network. The operator listed the disposable `generated/` directory,
+including producer and consumer certificates and temporary password material,
+then executed `rm -r generated/` without a reported error. A separate
+post-deletion filesystem check was not captured. This confirms ordinary
+cleanup evidence, not irreversible erasure from backups or synchronized storage.
 
 **Learning point:** Kafka topic Write, topic Read and group Read are distinct
 permissions, exercised with separate service certificates. A passing
 negative security test is a precisely asserted, intentional refusal—not
 an arbitrary connection failure. Record both the successful baseline and
 the negative rejection when demonstrating least privilege.
+
+### Cleanup security observation (06.7AB)
+
+The disposable credentials were generated with the expected distinct
+`lab-producer` and `lab-consumer` identities. The terminal listing also
+shows `admin.properties`, `broker.p12`, `truststore.p12`, and
+`store.password` with permission mode `0644`. This allows read access
+to other local accounts where operating-system permissions permit it;
+the `generated/` directory was `0755`. The local Docker bind-mount
+workaround should be replaced with narrowly permissioned runtime
+secret delivery (for example a dedicated broker UID/GID or copied
+secrets with `0600` or `0640` as appropriate) before any
+production-inspired credential-management exercise. Do not rely on
+`rm` for assured deletion from backups or cloud-synced storage.
