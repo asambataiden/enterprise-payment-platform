@@ -2,6 +2,7 @@ package dev.asambataiden.payment.payments.messaging.kafka.consumer;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -72,6 +73,20 @@ public final class KafkaConsumerLagAssessment {
             }
             if (endRequests.isEmpty()) {
                 return new Snapshot(State.NO_COMMITTED_OFFSETS, -1, 0);
+            }
+
+            // A partially initialized group must not be reported as caught up:
+            // every topic partition needs an actual committed offset.
+            var description = admin.describeTopics(List.of(topic)).allTopicNames()
+                    .get(TIMEOUT_SECONDS, TimeUnit.SECONDS).get(topic);
+            if (description == null || description.partitions().isEmpty()
+                    || description.partitions().size() != endRequests.size()) {
+                return new Snapshot(State.UNAVAILABLE, -1, 0);
+            }
+            for (var partition : description.partitions()) {
+                if (!endRequests.containsKey(new TopicPartition(topic, partition.partition()))) {
+                    return new Snapshot(State.UNAVAILABLE, -1, 0);
+                }
             }
 
             var ends = admin.listOffsets(endRequests).all()
