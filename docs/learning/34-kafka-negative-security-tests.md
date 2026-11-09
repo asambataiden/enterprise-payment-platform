@@ -1,6 +1,6 @@
 # Chapter 34 — Kafka Negative Security Testing: mTLS and Broker ACLs
 
-**Milestone:** 06.7AA. **Status:** Code and runnable lab wiring committed; local Maven and actual E2E verification **pending**.
+**Milestone:** 06.7AA. **Status:** Verified locally on November 9, 2026: application regression 85 unit + 67 integration passed; separately the secured broker suite passed 5/5 E2E tests (2 positive + 3 negative). This is local development-lab evidence, not production certification.
 
 ## 1. Use case and business motivation
 
@@ -125,9 +125,7 @@ bash provision-topics-acl.sh
 bash run-e2e.sh
 ```
 
-**Expected:** **5 E2E tests** (2 positive-contract tests + 3 negative tests),
-0 failures/errors/skipped. The usual application regression remains
-**152 tests** until independently reverified after these changes.
+**Observed November 9, 2026:** **5 E2E tests passed** (2 positive-contract tests + 3 negative tests), zero failures/errors/skipped, completing at 14:03:39 CET. The ordinary application regression was also independently verified: **85 unit + 67 integration = 152** passing tests. The E2E tests are a separate execution, not part of the 152 count.
 
 The previous lab's `generated/` directory was removed after successful
 2/2 positive E2E verification. During the November 9, 2026 Chapter 34
