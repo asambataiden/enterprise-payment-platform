@@ -1,4 +1,5 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.producer;
+import dev.asambataiden.payment.payments.outbox.PaymentOutboxEvent;
 
 import java.time.Duration;
 import java.util.ArrayList;

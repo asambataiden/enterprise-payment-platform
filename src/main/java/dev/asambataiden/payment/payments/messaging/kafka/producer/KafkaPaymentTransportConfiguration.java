@@ -1,4 +1,6 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.producer;
+import dev.asambataiden.payment.payments.outbox.SupervisedPaymentOutboxWorker;
+import dev.asambataiden.payment.payments.outbox.PaymentOutboxDispatcher;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

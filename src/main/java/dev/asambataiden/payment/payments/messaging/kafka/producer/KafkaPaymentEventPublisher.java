@@ -1,4 +1,6 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.producer;
+import dev.asambataiden.payment.payments.outbox.PaymentEventPublisher;
+import dev.asambataiden.payment.payments.outbox.PaymentOutboxEvent;
 
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
