@@ -15,13 +15,16 @@ public final class OptInKafkaPaymentListener {
     private final LocalKafkaPaymentRecordProcessor processor;
     private final LocalPaymentEventProjection projection;
     private final KafkaConsumerFailureObservations observations;
+    private final KafkaConsumerMetrics metrics;
 
     public OptInKafkaPaymentListener(LocalKafkaPaymentRecordProcessor processor,
                                      LocalPaymentEventProjection projection,
-                                     KafkaConsumerFailureObservations observations) {
+                                     KafkaConsumerFailureObservations observations,
+                                     KafkaConsumerMetrics metrics) {
         this.processor = Objects.requireNonNull(processor);
         this.projection = Objects.requireNonNull(projection);
         this.observations = Objects.requireNonNull(observations);
+        this.metrics = Objects.requireNonNull(metrics);
     }
 
     @KafkaListener(id = "simulated-payment-projection-v1",
@@ -30,8 +33,9 @@ public final class OptInKafkaPaymentListener {
             containerFactory = "paymentManualAckListenerFactory",
             autoStartup = "${payment.messaging.kafka.consumer.enabled:false}")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        boolean newlyProcessed;
         try {
-            processor.processWithEvent("simulated-projection-v1", record, projection::record);
+            newlyProcessed = processor.processWithEvent("simulated-projection-v1", record, projection::record);
         } catch (RuntimeException failure) {
             String category = failure instanceof SecurityException ? "UNTRUSTED_EVENT"
                     : failure instanceof IllegalArgumentException ? "INVALID_CONTRACT"
@@ -41,10 +45,12 @@ public final class OptInKafkaPaymentListener {
             } catch (RuntimeException observationFailure) {
                 failure.addSuppressed(observationFailure);
             }
+            metrics.failure(category);
             // Deliberately do not acknowledge a failed record. The container
             // stopping error handler halts the partition for operator review.
             throw failure;
         }
         Objects.requireNonNull(acknowledgment, "MANUAL_IMMEDIATE acknowledgment required").acknowledge();
+        metrics.success(newlyProcessed);
     }
 }
