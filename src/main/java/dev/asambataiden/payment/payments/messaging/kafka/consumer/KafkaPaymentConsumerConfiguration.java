@@ -1,5 +1,6 @@
 package dev.asambataiden.payment.payments.messaging.kafka.consumer;
 import dev.asambataiden.payment.payments.outbox.TrustedPaymentEventConsumer;
+import dev.asambataiden.payment.payments.messaging.kafka.security.KafkaTransportSecurity;
 
 import java.util.Map;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -34,10 +35,7 @@ public class KafkaPaymentConsumerConfiguration {
             throw new IllegalStateException("Kafka consumer requires bootstrap servers and stable group ID");
         }
         Map<String, Object> properties = consumerFactory.getConfigurationProperties();
-        Object protocol = properties.get("security.protocol");
-        if (!"SSL".equals(protocol) && !"SASL_SSL".equals(protocol)) {
-            throw new IllegalStateException("Kafka consumer requires an encrypted TLS transport");
-        }
+        KafkaTransportSecurity.validate(properties);
         requireExplicitManualOffsetCommit(properties);
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
