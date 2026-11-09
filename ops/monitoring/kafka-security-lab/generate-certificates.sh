@@ -42,6 +42,8 @@ EOF
 generate_identity "lab-broker" "DNS:broker,DNS:localhost"
 generate_identity "lab-admin" "DNS:localhost"
 generate_identity "lab-reader" "DNS:localhost"
+generate_identity "lab-producer" "DNS:localhost"
+generate_identity "lab-consumer" "DNS:localhost"
 
 # Keep the broker keystore name independent of the certificate's principal.
 cp "$OUT/lab-broker.p12" "$OUT/broker.p12"
