@@ -160,6 +160,47 @@ class KafkaConsumerContractTest {
         assertRejected("€".repeat(1366), "merchant:payment");
     }
 
+    @Test
+    void rejectsNonCanonicalEventAndPaymentUuidsBeforeTrustedConsumer()
+            throws Exception {
+        var event = event();
+        String payload = json.writeValueAsString(event);
+        String nonCanonical = "1-1-1-1-1";
+
+        String invalidEventId = payload.replace(
+                event.eventId().toString(), nonCanonical);
+        String invalidPaymentId = payload.replace(
+                event.paymentId().toString(), nonCanonical);
+
+        assertNotEquals(payload, invalidEventId);
+        assertNotEquals(payload, invalidPaymentId);
+        assertRejected(invalidEventId, key(event));
+        assertRejected(invalidPaymentId,
+                event.merchantId() + ":" + nonCanonical);
+    }
+
+    @Test
+    void acceptsUppercaseCanonicalEventUuid() throws Exception {
+        var trusted = mock(TrustedPaymentEventConsumer.class);
+        var processor = new LocalKafkaPaymentRecordProcessor(TOPIC, trusted);
+        var event = event();
+        String payload = json.writeValueAsString(event).replace(
+                event.eventId().toString(),
+                event.eventId().toString().toUpperCase(java.util.Locale.ROOT));
+
+        when(trusted.consume(eq("reporting"),
+                any(PaymentOutboxEvent.class), any(Runnable.class)))
+                .thenReturn(true);
+
+        assertTrue(processor.process(
+                "reporting",
+                new ConsumerRecord<>(TOPIC, 0, 0L, key(event), payload),
+                () -> {}));
+
+        verify(trusted).consume(eq("reporting"),
+                eq(event), any(Runnable.class));
+    }
+
     private void assertRejected(
             String payload,
             String recordKey
