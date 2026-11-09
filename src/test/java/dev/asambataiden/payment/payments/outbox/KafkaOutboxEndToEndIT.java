@@ -45,7 +45,7 @@ class KafkaOutboxEndToEndIT {
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Container
-    static final KafkaContainer kafka = new KafkaContainer("apache/kafka-native:4.1.0");
+    static final KafkaContainer kafka = new KafkaContainer("apache/kafka:4.1.2");
 
     @MockitoBean JwtDecoder jwtDecoder;
     @Autowired PaymentService payments;
