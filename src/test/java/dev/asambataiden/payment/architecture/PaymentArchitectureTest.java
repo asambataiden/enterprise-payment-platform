@@ -61,7 +61,7 @@ class PaymentArchitectureTest {
             noClasses().that().resideInAPackage("..ledger.domain..")
                     .should().dependOnClassesThat()
                     .resideInAnyPackage("org.springframework..", "jakarta.persistence..",
-                            "org.apache.kafka..", "..payments.api..", "..payments.outbox..");
+                            "org.apache.kafka..", "..payments.api..", "..payments.outbox..", "..payments.messaging..");
 
     @ArchTest
     static final ArchRule payment_domain_stays_transport_independent =
@@ -69,4 +69,15 @@ class PaymentArchitectureTest {
                     .should().dependOnClassesThat()
                     .resideInAnyPackage("org.apache.kafka..", "org.springframework.kafka..",
                             "..payments.outbox..");
+    @ArchTest
+    static final ArchRule outbox_core_must_not_depend_on_kafka_adapters =
+            noClasses().that().resideInAPackage("..payments.outbox..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("..payments.messaging.kafka..");
+
+    @ArchTest
+    static final ArchRule kafka_consumer_adapter_does_not_depend_on_http =
+            noClasses().that().resideInAPackage("..payments.messaging.kafka.consumer..")
+                    .should().dependOnClassesThat()
+                    .resideInAPackage("..payments.api..");
 }
