@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -41,6 +42,13 @@ public final class LocalKafkaPaymentRecordProcessor {
      */
     public boolean process(String consumerName, ConsumerRecord<String, String> record,
                            Runnable localDatabaseEffect) {
+        Objects.requireNonNull(localDatabaseEffect);
+        return processWithEvent(consumerName, record, ignored -> localDatabaseEffect.run());
+    }
+
+    /** Type-safe event effect, executed with the inbox receipt in one DB transaction. */
+    public boolean processWithEvent(String consumerName, ConsumerRecord<String, String> record,
+                                    Consumer<PaymentOutboxEvent> localDatabaseEffect) {
         Objects.requireNonNull(record);
         Objects.requireNonNull(localDatabaseEffect);
         if (!topic.equals(record.topic())) {
@@ -77,7 +85,7 @@ public final class LocalKafkaPaymentRecordProcessor {
         }
         PaymentOutboxEvent event = new PaymentOutboxEvent(
                 version, eventId, merchantId, paymentId, targetState);
-        return consumer.consume(consumerName, event, localDatabaseEffect);
+        return consumer.consume(consumerName, event, () -> localDatabaseEffect.accept(event));
     }
 
     private static String string(Map<?, ?> fields, String key) {
