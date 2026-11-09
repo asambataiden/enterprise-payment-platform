@@ -1,4 +1,6 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.consumer;
+import dev.asambataiden.payment.payments.outbox.TrustedPaymentEventConsumer;
+import dev.asambataiden.payment.payments.outbox.PaymentOutboxEvent;
 import dev.asambataiden.payment.payments.messaging.kafka.producer.KafkaPaymentEventPublisher;
 
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;

@@ -1,4 +1,5 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.consumer;
+import dev.asambataiden.payment.payments.outbox.TrustedPaymentEventConsumer;
 
 import java.util.Map;
 import io.micrometer.core.instrument.MeterRegistry;

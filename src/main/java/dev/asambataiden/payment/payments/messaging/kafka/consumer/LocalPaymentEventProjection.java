@@ -1,4 +1,5 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.consumer;
+import dev.asambataiden.payment.payments.outbox.PaymentOutboxEvent;
 
 import java.util.Objects;
 import org.springframework.jdbc.core.JdbcTemplate;

@@ -1,4 +1,4 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.consumer;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

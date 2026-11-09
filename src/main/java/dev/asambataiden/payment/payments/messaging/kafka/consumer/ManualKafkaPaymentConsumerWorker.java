@@ -1,4 +1,4 @@
-package dev.asambataiden.payment.payments.outbox;
+package dev.asambataiden.payment.payments.messaging.kafka.consumer;
 
 import java.time.Duration;
 import java.util.List;
