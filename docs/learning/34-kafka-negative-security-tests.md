@@ -109,14 +109,16 @@ sequenceDiagram
 
 ## 6. Detailed hands-on tutorial
 
-Run from the root of `enterprise-payment-platform` after pulling the
-latest `feat/payment-ledger` branch:
+Run from **any directory within this Git repository** after pulling the
+latest `feat/payment-ledger` branch. The explicit Maven POM path avoids the
+`MissingProjectException` observed on November 9, 2026:
 
 ```bash
-git pull --ff-only origin feat/payment-ledger
-mvn -B --no-transfer-progress clean verify
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" pull --ff-only origin feat/payment-ledger
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" clean verify
 
-cd ops/monitoring/kafka-security-lab
+cd "$ROOT/ops/monitoring/kafka-security-lab"
 bash generate-certificates.sh
 docker compose -f compose.yaml up -d
 bash provision-topics-acl.sh
@@ -127,8 +129,10 @@ bash run-e2e.sh
 0 failures/errors/skipped. The usual application regression remains
 **152 tests** until independently reverified after these changes.
 
-You previously deleted `generated/`, so the next certificate generation
-will not overwrite old secrets. If `generated/` already exists, the
+The previous lab's `generated/` directory was removed after successful
+2/2 positive E2E verification. During the November 9, 2026 Chapter 34
+exercise fresh credentials and a broker were created again; completion of
+all five E2E tests is **not established by the available log excerpt**. If `generated/` already exists, the
 generator intentionally refuses to continue; do not overwrite credentials
 in an active test lab.
 
