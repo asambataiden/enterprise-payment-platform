@@ -6,6 +6,7 @@ import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionS
 import dev.asambataiden.payment.payments.domain.PaymentState;
 import dev.asambataiden.payment.testinfra.KafkaTestSupport;
 import java.math.BigDecimal;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -44,13 +45,15 @@ class OptInKafkaPaymentListenerIT {
     @Autowired SimulatedPaymentTransitionService transitions;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlatformTransactionManager manager;
+    private final SimpleMeterRegistry metrics = new SimpleMeterRegistry();
 
     private OptInKafkaPaymentListener listener(String topic) {
         return new OptInKafkaPaymentListener(
                 new LocalKafkaPaymentRecordProcessor(topic,
                         new TrustedPaymentEventConsumer(jdbc, manager)),
                 new LocalPaymentEventProjection(jdbc),
-                new KafkaConsumerFailureObservations(jdbc, manager));
+                new KafkaConsumerFailureObservations(jdbc, manager),
+                new KafkaConsumerMetrics(metrics));
     }
 
     @Test
@@ -86,6 +89,8 @@ class OptInKafkaPaymentListenerIT {
             var replayAck = mock(Acknowledgment.class);
             listener(topic).onMessage(record, replayAck);
             verify(replayAck, times(1)).acknowledge();
+            assertEquals(1.0, metrics.get("payment.kafka.consumer.records").tag("outcome", "processed").counter().count());
+            assertEquals(1.0, metrics.get("payment.kafka.consumer.records").tag("outcome", "replayed").counter().count());
             assertEquals(1, jdbc.queryForObject(
                     "SELECT COUNT(*) FROM payment_event_projection WHERE merchant_id=? AND event_id=?",
                     Integer.class, merchant, eventId));
