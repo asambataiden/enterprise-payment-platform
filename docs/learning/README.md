@@ -82,6 +82,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [20 — Canonical Kafka UUID validation](20-kafka-canonical-uuid-validation.md)
 - [21 — Merchant identifier contract policy and Unicode compatibility](21-merchant-identifier-contract-policy.md)
 - [22 — Executable Draft 2020-12 JSON Schema verification](22-executable-json-schema-contract-verification.md)
+- [23 — Fail-closed Kafka offset configuration](23-fail-closed-kafka-offset-configuration.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
