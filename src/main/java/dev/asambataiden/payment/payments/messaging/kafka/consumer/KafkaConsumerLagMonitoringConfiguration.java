@@ -1,6 +1,7 @@
 package dev.asambataiden.payment.payments.messaging.kafka.consumer;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import dev.asambataiden.payment.payments.messaging.kafka.security.KafkaTransportSecurity;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -27,10 +28,7 @@ public class KafkaConsumerLagMonitoringConfiguration {
     @Bean(destroyMethod = "close")
     Admin paymentConsumerLagAdmin(ConsumerFactory<String, String> consumerFactory) {
         Map<String, Object> properties = consumerFactory.getConfigurationProperties();
-        Object protocol = properties.get("security.protocol");
-        if (!"SSL".equals(protocol) && !"SASL_SSL".equals(protocol)) {
-            throw new IllegalStateException("Lag monitoring requires encrypted Kafka transport");
-        }
+        KafkaTransportSecurity.validate(properties);
         KafkaPaymentConsumerConfiguration.requireExplicitManualOffsetCommit(properties);
         if (!properties.containsKey(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG)) {
             throw new IllegalStateException("Lag monitoring requires Kafka bootstrap servers");
