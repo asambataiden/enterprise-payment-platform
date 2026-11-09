@@ -22,7 +22,8 @@ Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILU
 12. [Kafka poison evidence and recovery](11-kafka-poison-evidence-and-operator-recovery.md) — persistent observations, operator runbook and no-skip policy.
 13. [Real Kafka container lifecycle and metrics](12-kafka-container-lifecycle-and-metrics.md) — successful/poison startup, stop, counters and evidence limits.
 14. [Package boundaries, API error contracts and OpenAPI](13-package-refactor-error-contracts-openapi.md) — practical refactoring, schema stability and security.
-15. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
+15. [OpenAPI contract compatibility gate](14-openapi-compatibility-gate.md) — reviewed semantic baseline, CI failure and migration decisions.
+16. [Interview workbook](interview-workbook.md) — technical questions, tradeoffs and guided explanations.
 
 ## Repeatable learning method
 
