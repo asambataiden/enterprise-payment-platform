@@ -56,6 +56,7 @@ public class KafkaPaymentConsumerConfiguration {
         return new OptInKafkaPaymentListener(
                 new LocalKafkaPaymentRecordProcessor(topic,
                         new TrustedPaymentEventConsumer(jdbc, manager)),
-                new LocalPaymentEventProjection(jdbc));
+                new LocalPaymentEventProjection(jdbc),
+                new KafkaConsumerFailureObservations(jdbc, manager));
     }
 }
