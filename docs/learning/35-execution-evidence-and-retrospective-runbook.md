@@ -63,7 +63,7 @@ not a predicted test count.
 | 29–30 Prometheus and real recovery | Detect health/recovery anomalies, prove non-skipping replay behavior | Secure metrics export, Kafka+PostgreSQL Testcontainers recovery drill | Local verified baseline **149 tests** (82 unit + 67 IT); recovery scenario passed |
 | 31 Kafka security preflight | Prevent insecure client transport settings | Shared TLS/SASL/hostname checks, three new unit tests | Local verified baseline **152 tests** (85 unit + 67 IT) |
 | 32–33 secured broker | Prove TLS and broker ACL behavior, not just config shape | mTLS lab, KRaft authorizer, scoped reader, two real-broker tests | **2/2 E2E passed**, separate from default 152; lab subsequently torn down |
-| 34 negative security | Prove missing identity, unrelated CA trust and prohibited Write are rejected | Three additional real-broker E2E cases | Implemented; supplied log stops before complete test result |
+| 34 negative security | Prove missing identity, unrelated CA trust and prohibited Write are rejected | Three additional real-broker E2E cases | **3/3 negative E2E passed** on Nov 9; together with positive tests **5/5 E2E passed** |
 
 ### Operational incident: duplicate Flyway migrations
 
@@ -92,6 +92,52 @@ repository root.
 discovering Git root and passing the Maven POM explicitly. If using
 independent shell commands, check each exit code before advancing. This
 prevents false claims that testing passed.
+
+## Verified continuation — November 9, 2026
+
+After correcting the Maven working-directory issue, the following **actual
+local evidence** was supplied. These outcomes supersede the earlier pending
+states in the initial Chapter 35 chronology, without changing that history.
+
+| Checkpoint | Observed result | Evidence interpretation |
+| --- | --- | --- |
+| Application regression, first full run | Failsafe **67 tests, 0 failures/errors/skipped**; BUILD SUCCESS 14:01:27 CET | Combined with its unit suite, the current application baseline is 85 unit + 67 IT |
+| Application regression, repeat full run | Surefire **85 tests** and Failsafe **67 tests**; BUILD SUCCESS 14:03:29 CET | Repeated verification of **152 application tests** |
+| Secured broker readiness | Container listed **Up**, with `127.0.0.1:19093` published | Development broker was running; not production security evidence alone |
+| ACL provisioning | `User:CN=lab-reader` granted only Describe on `payment.security.allowed` | Exact resource scope shown in CLI evidence |
+| Positive secured broker tests | **2 tests passed** in `SecuredKafkaBrokerE2E` | Permitted Describe and prohibited Describe checked against broker |
+| Negative secured broker tests | **3 tests passed** in `KafkaNegativeSecurityE2E` | Missing client identity, unrelated CA and forbidden producer Write |
+| Total secured E2E | **5 tests, 0 failed, 0 errors, 0 skipped**; BUILD SUCCESS 14:03:39 CET | Separate explicit E2E execution, **not** part of the 152 Maven regression test count |
+
+### Failure evidence captured and its meaning
+
+- `SSLHandshakeException` with `PKIX path building failed` appeared
+  during the **untrusted CA** test. This is the intended failure to
+  establish server-certificate trust.
+- `SSLHandshakeException` with `certificate_required` appeared
+  during the **missing client certificate** test. This is the intended
+  broker-side client-authentication rejection.
+- The unauthorized Write test asserted
+  `TopicAuthorizationException` rather than treating network timeout
+  as successful authorization denial. The test finished without failure.
+- The broker and private lab credentials are **not shown cleaned up**
+  in this uploaded execution log. Teardown must be checked separately
+  before marking this particular lab session fully closed.
+
+### Engineering takeaway
+
+**A failing security interaction can cause a passing security test.**
+A secure negative test declares success only when the client is
+rejected for the intended reason, not when arbitrary connectivity
+problems occur. Positive control requests before and after the negative
+cases reduce false positives. These cases do not prove credential
+rotation, all Kafka ACL operations, a production-hardened KRaft
+controller, or a real-money payment workload.
+
+**Test-count discipline:** the project completed **152 application
+tests and five additional secured E2E test executions**, or 157 passing
+test executions across two distinct suites. Never describe this as one
+157-test Maven run.
 
 ## 3. Process flow and evidence checkpoints
 
