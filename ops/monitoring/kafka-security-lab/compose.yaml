@@ -1,0 +1,41 @@
+name: payment-kafka-security-lab
+
+# Disposable LOCAL development broker. Not a production Kafka topology.
+# All TLS material must be generated first by ./generate-certificates.sh.
+services:
+  broker:
+    image: apache/kafka:4.1.2
+    hostname: broker
+    ports:
+      - "127.0.0.1:19093:9093"
+    volumes:
+      - ./generated:/etc/kafka/secrets:ro
+    environment:
+      CLUSTER_ID: "4L6g3nShT-eMCtK--X86sw"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@broker:29093"
+      KAFKA_LISTENERS: "SSL://:9093,SSL-INTERNAL://:19093,CONTROLLER://:29093"
+      KAFKA_ADVERTISED_LISTENERS: "SSL://localhost:19093,SSL-INTERNAL://broker:19093"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "SSL:SSL,SSL-INTERNAL:SSL,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "SSL-INTERNAL"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_SSL_KEYSTORE_FILENAME: "broker.p12"
+      KAFKA_SSL_KEYSTORE_TYPE: "PKCS12"
+      KAFKA_SSL_KEYSTORE_CREDENTIALS: "store.password"
+      KAFKA_SSL_KEY_CREDENTIALS: "store.password"
+      KAFKA_SSL_TRUSTSTORE_FILENAME: "truststore.p12"
+      KAFKA_SSL_TRUSTSTORE_TYPE: "PKCS12"
+      KAFKA_SSL_TRUSTSTORE_CREDENTIALS: "store.password"
+      KAFKA_SSL_CLIENT_AUTH: "required"
+      KAFKA_SSL_ENDPOINT_IDENTIFICATION_ALGORITHM: "https"
+      KAFKA_AUTHORIZER_CLASS_NAME: "org.apache.kafka.metadata.authorizer.StandardAuthorizer"
+      KAFKA_ALLOW_EVERYONE_IF_NO_ACL_FOUND: "false"
+      # ANONYMOUS applies only to the isolated lab controller's PLAINTEXT listener.
+      # Never expose controller port; production uses dedicated secured controllers.
+      KAFKA_SUPER_USERS: "User:ANONYMOUS;User:CN=lab-broker;User:CN=lab-admin"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: "/tmp/kraft-security-lab"
