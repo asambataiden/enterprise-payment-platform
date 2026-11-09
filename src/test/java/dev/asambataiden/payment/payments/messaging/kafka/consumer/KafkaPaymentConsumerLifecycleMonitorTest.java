@@ -14,7 +14,8 @@ class KafkaPaymentConsumerLifecycleMonitorTest {
     void reportsMissingStoppedAndRunningWithoutDynamicMetricTags() {
         var registry = mock(KafkaListenerEndpointRegistry.class);
         var listener = mock(MessageListenerContainer.class);
-        try (var meters = new SimpleMeterRegistry()) {
+        var meters = new SimpleMeterRegistry();
+        try {
             var monitor = new KafkaPaymentConsumerLifecycleMonitor(registry, meters);
             var gauge = meters.get("payment.kafka.consumer.lifecycle.state").gauge();
 
@@ -37,6 +38,8 @@ class KafkaPaymentConsumerLifecycleMonitorTest {
                     monitor.state());
             assertEquals(2.0, gauge.value());
             assertTrue(gauge.getId().getTags().isEmpty());
+        } finally {
+            meters.close();
         }
     }
 }
