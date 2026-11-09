@@ -18,7 +18,15 @@ public class KafkaPaymentTransportConfiguration {
     @Bean
     KafkaPaymentEventPublisher kafkaPaymentEventPublisher(
             KafkaTemplate<String, String> kafka,
-            @Value("${payment.messaging.kafka.topic}") String topic) {
+            @Value("${payment.messaging.kafka.topic}") String topic,
+            @Value("${KAFKA_BOOTSTRAP_SERVERS:}") String bootstrap,
+            @Value("${KAFKA_SECURITY_PROTOCOL:SASL_SSL}") String protocol) {
+        if (bootstrap.isBlank()) {
+            throw new IllegalStateException("KAFKA_BOOTSTRAP_SERVERS is required when Kafka is enabled");
+        }
+        if (!"SASL_SSL".equals(protocol) && !"SSL".equals(protocol)) {
+            throw new IllegalStateException("Kafka publishing requires SASL_SSL or SSL");
+        }
         return new KafkaPaymentEventPublisher(kafka, topic);
     }
 
