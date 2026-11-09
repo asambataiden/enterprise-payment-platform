@@ -1,6 +1,6 @@
 # Milestone 06.7A — Validate Kafka messages before local transactional consumption
 
-**Status:** Internal record processor and real-broker integration tests; NOT an automatically running listener, authenticated remote consumer, or production deployment.
+**Status:** Internal record processor and real-broker integration tests **verified** at commit `6c1b98e` (Java CI #225 and Security CI #139). NOT an automatically running listener, authenticated remote consumer, or production deployment.
 
 ## Problem — why publishing events is not enough
 
@@ -80,3 +80,9 @@ An authenticated Kafka transport is a *separate deployment control*. The project
 - [Idempotent consumer discussion](https://microservices.io/patterns/communication-style/idempotent-consumer.html)
 
 **Next acceptance gate:** add opt-in authenticated Kafka listener with explicit offset/DLQ policy, typed local effect, validated topic ACL settings and replay tests. Do not auto-enable consumption for a demonstration.
+
+## Verified evidence (implementation baseline)
+
+- [Java CI #225](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42562622250): **94/94 tests passed** — 48 fast and 46 integration, including 3 new Kafka/PostgreSQL consumer tests.
+- [Security CI #139](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42562622169): Trivy and Gitleaks passed.
+- Evidence is anchored to implementation commit `6c1b98e`. A later documentation-only commit needs its own current-head checks before being called verified.
