@@ -93,6 +93,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [31 — Kafka deployment transport security and least privilege](31-kafka-deployment-transport-security.md)
 - [32 — Secured Kafka broker integration and ACL-denial contract](32-secured-kafka-broker-e2e-contract.md)
 - [33 — Disposable mTLS Kafka security lab and ACL verification](33-disposable-mtls-kafka-security-lab.md)
+- [34 — Kafka negative mTLS and authorization security tests](34-kafka-negative-security-tests.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
