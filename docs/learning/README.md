@@ -87,6 +87,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [25 — Kafka consumer recovery assessment and operator triage](25-kafka-consumer-recovery-assessment.md)
 - [26 — Kafka listener lifecycle observability](26-kafka-listener-lifecycle-observability.md)
 - [27 — Kafka consumer lag assessment and alerting design](27-kafka-consumer-lag-and-alerting-design.md)
+- [28 — Cached Kafka lag monitoring and operational metrics](28-kafka-lag-monitoring-cached-metrics.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
