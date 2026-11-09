@@ -30,7 +30,7 @@ A merchant sends a payment-intake request and needs to know **whether it was rec
 | 06.4 | Deliver events without tying DB commit to broker availability; handle crashes, retries and duplicates | V5 delivery lease/inbox, `PaymentOutboxDispatcherIT` | ✅ library/manual |
 | 06.5 | Quarantine persistent failures and add a bounded worker plus local-effect deduplication | V6 poison quarantine, `SupervisedPaymentOutboxWorker`, `TrustedPaymentEventConsumer` | ✅ internal-only |
 | 06.6 | Verify a real broker boundary; publish versioned events with per-payment partition affinity | opt-in `KafkaPaymentEventPublisher`, `KafkaOutboxEndToEndIT` | ✅ opt-in producer; ⬜ live consumer |
-| 06.6.1 | Consolidate duplicated Kafka test setup and enforce domain/module dependencies before growing the system | `KafkaTestSupport`, ArchUnit domain rules, learning walkthrough | ✅ code committed, CI verification pending |
+| 06.6.1 | Consolidate duplicated Kafka test setup and enforce domain/module dependencies before growing the system | `KafkaTestSupport`, ArchUnit domain rules, learning walkthrough | ✅ Java CI #213 (91/91), Security CI #127 at 5d451da |
 | 06.7 | Authenticate trusted Kafka consumers, validate schema compatibility and replay safely | Event contract governance, consumer adapter and E2E replay tests | ⬜ |
 | 06.8 | Observe, deploy and recover reliably | supervised scheduler, worker shutdown, metrics/alerts, backup/restore, topic ACLs, TLS/SASL smoke tests, runbooks | ⬜ |
 | 07 | Model realistic accounting and merchant workflows | capture authorization source, reversal postings, refunds, reconciliation and authorized chart of accounts | ⬜ |
