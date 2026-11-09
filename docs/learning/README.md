@@ -98,6 +98,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [34 — Kafka negative mTLS and authorization security tests](34-kafka-negative-security-tests.md)
 - [35 — Execution evidence, operator errors and retrospective learning](35-execution-evidence-and-retrospective-runbook.md)
 - [36 — Kafka producer and consumer-group least-privilege ACLs](36-kafka-producer-consumer-acls.md)
+- [37 — Kafka idempotent producer authorization and cluster ACLs](37-kafka-idempotent-producer-authorization.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
