@@ -16,6 +16,8 @@ export PAYMENT_SECURE_KAFKA_KEYSTORE_PASSWORD="$PAYMENT_SECURE_KAFKA_TRUSTSTORE_
 export PAYMENT_SECURE_KAFKA_KEY_PASSWORD="$PAYMENT_SECURE_KAFKA_TRUSTSTORE_PASSWORD"
 export PAYMENT_SECURE_KAFKA_ROGUE_TRUSTSTORE_LOCATION="$PWD/generated/untrusted-truststore.p12"
 export PAYMENT_SECURE_KAFKA_ROGUE_TRUSTSTORE_PASSWORD="$PAYMENT_SECURE_KAFKA_TRUSTSTORE_PASSWORD"
+export PAYMENT_SECURE_KAFKA_PRODUCER_KEYSTORE_LOCATION="$PWD/generated/lab-producer.p12"
+export PAYMENT_SECURE_KAFKA_CONSUMER_KEYSTORE_LOCATION="$PWD/generated/lab-consumer.p12"
 # Run Maven from repository root. No credentials in argv or output.
 cd ../../..
-exec mvn -B --no-transfer-progress -Dtest=SecuredKafkaBrokerE2E,KafkaNegativeSecurityE2E test
+exec mvn -B --no-transfer-progress -Dtest=SecuredKafkaBrokerE2E,KafkaNegativeSecurityE2E,KafkaPrincipalAuthorizationE2E test
