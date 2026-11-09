@@ -80,6 +80,14 @@ mvn -B clean verify
 - Assess OWASP ASVS controls, rate limiting, auditability, error redaction, HTTP/TLS deployment and dependency security results.
 - Resolve outstanding findings in [PR #1 release readiness](docs/reviews/pr-0001-release-readiness.md) before treating this as production capable.
 
+## Architecture quality and public API contract (06.7F)
+
+The Kafka adapters now live under `payments.messaging.kafka.producer` and `payments.messaging.kafka.consumer`, while `payments.outbox` retains broker-independent dispatch and inbox semantics. [Messaging package boundaries](docs/architecture/messaging-package-boundaries.md) explain ownership and ArchUnit rules.
+
+Public errors use RFC 9457 `application/problem+json` with a stable `code` field (e.g. `PAYMENT_IDEMPOTENCY_CONFLICT` or `PAYMENT_NOT_FOUND`). Domain exceptions remain independent of HTTP status and OpenAPI annotations.
+
+OpenAPI v1 is **disabled by default** and has no Swagger UI dependency. To expose JSON documentation in a properly authenticated local environment, set `PAYMENT_OPENAPI_ENABLED=true`; `GET /v3/api-docs` then requires the dedicated JWT authority `SCOPE_payments:docs`. See [Learning Chapter 13](docs/learning/13-package-refactor-error-contracts-openapi.md). Never expose this endpoint anonymously on an internet-facing deployment.
+
 ## Engineering documentation
 
 The [learning handbook](docs/learning/README.md) is the documentation entry point. It links all milestone and scenario records without duplicating them.
