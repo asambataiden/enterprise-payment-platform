@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @EnabledIfEnvironmentVariable(named = "PAYMENT_SECURE_KAFKA_TEST_ENABLED", matches = "true")
 class SecuredKafkaBrokerE2E {
 
-    private static String required(String name) {
+    static String required(String name) {
         String value = System.getenv(name);
         if (value == null || value.isBlank()) {
             throw new IllegalStateException("Missing secure Kafka test configuration: " + name);
@@ -31,7 +31,7 @@ class SecuredKafkaBrokerE2E {
         return value;
     }
 
-    private static Map<String, Object> clientProperties() {
+    static Map<String, Object> clientProperties() {
         var config = new HashMap<String, Object>();
         config.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG,
                 required("PAYMENT_SECURE_KAFKA_BOOTSTRAP_SERVERS"));
