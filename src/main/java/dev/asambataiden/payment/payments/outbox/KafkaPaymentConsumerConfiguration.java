@@ -1,6 +1,7 @@
 package dev.asambataiden.payment.payments.outbox;
 
 import java.util.Map;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -51,12 +52,13 @@ public class KafkaPaymentConsumerConfiguration {
 
     @Bean
     OptInKafkaPaymentListener optInKafkaPaymentListener(
-            JdbcTemplate jdbc, PlatformTransactionManager manager,
+            JdbcTemplate jdbc, PlatformTransactionManager manager, MeterRegistry meterRegistry,
             @Value("${payment.messaging.kafka.topic}") String topic) {
         return new OptInKafkaPaymentListener(
                 new LocalKafkaPaymentRecordProcessor(topic,
                         new TrustedPaymentEventConsumer(jdbc, manager)),
                 new LocalPaymentEventProjection(jdbc),
-                new KafkaConsumerFailureObservations(jdbc, manager));
+                new KafkaConsumerFailureObservations(jdbc, manager),
+                new KafkaConsumerMetrics(meterRegistry));
     }
 }
