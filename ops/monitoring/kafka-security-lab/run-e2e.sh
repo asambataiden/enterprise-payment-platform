@@ -2,7 +2,15 @@
 # Execute external-broker E2E using a throwaway mTLS identity.
 set -euo pipefail
 cd "$(dirname "$0")"
-test -r generated/reader.properties || { echo "Run generate-certificates.sh first" >&2; exit 1; }
+for required_file in generated/reader.properties generated/store.password \
+  generated/lab-reader.p12 generated/lab-producer.p12 generated/lab-consumer.p12 \
+  generated/truststore.p12 generated/untrusted-truststore.p12; do
+  if [[ ! -r "$required_file" ]]; then
+    echo "Missing ephemeral lab prerequisite: $required_file" >&2
+    echo "Generate fresh identities (once) and provision the broker before testing." >&2
+    exit 1
+  fi
+done
 export PAYMENT_SECURE_KAFKA_TEST_ENABLED=true
 export PAYMENT_SECURE_KAFKA_BOOTSTRAP_SERVERS=localhost:19093
 export PAYMENT_SECURE_KAFKA_PROTOCOL=SSL
