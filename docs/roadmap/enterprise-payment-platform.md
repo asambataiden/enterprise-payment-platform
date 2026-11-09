@@ -35,6 +35,7 @@ A merchant sends a payment-intake request and needs to know **whether it was rec
 | 06.7 | Authenticate trusted Kafka consumers, validate schema compatibility and replay safely | Event contract governance, consumer adapter and E2E replay tests | ⬜ |
 | 06.7B | Introduce explicitly invoked, fail-stop Kafka polling with manual offset commits after local DB processing | `ManualKafkaPaymentConsumerWorker`, real Kafka restart/replay IT, learning guide | 🟡 manual-only (no live listener) |
 | 06.7C | Opt-in Spring Kafka listener, manual ACK, fail-stop handler and transactional local typed projection | V7, `OptInKafkaPaymentListener`, broker/Postgres IT, lesson | 🟡 opt-in; production broker credentials/DLQ not proven |
+| 06.7D | Record persistent minimal Kafka failure evidence without acknowledging poison messages; operator-reviewed recovery remains a future control | Flyway V8, `KafkaConsumerFailureObservations`, listener tests, learning chapter | 🟡 forensic evidence only, not a DLQ |
 | 06.8 | Observe, deploy and recover reliably | supervised scheduler, worker shutdown, metrics/alerts, backup/restore, topic ACLs, TLS/SASL smoke tests, runbooks | ⬜ |
 | 07 | Model realistic accounting and merchant workflows | capture authorization source, reversal postings, refunds, reconciliation and authorized chart of accounts | ⬜ |
 | 08 | Prove delivery/supply-chain/operational quality | load and chaos tests, SBOM/signing, SAST, threat model, performance SLOs, infrastructure hardening | ⬜ |
