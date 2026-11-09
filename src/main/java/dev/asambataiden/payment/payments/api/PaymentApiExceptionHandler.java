@@ -47,7 +47,10 @@ public class PaymentApiExceptionHandler {
                 status.value() == 409 ? "Conflict" :
                 status.value() == 404 ? "Not Found" : "Bad Request");
         detail.setDetail(exception.getReason());
-        detail.setType(URI.create("about:blank"));
+        var code = status.value() == 403 ? PaymentApiErrorCode.MERCHANT_IDENTITY_REQUIRED
+                : PaymentApiErrorCode.BAD_REQUEST;
+        detail.setType(code.type());
+        detail.setProperty("code", code.value());
         return ResponseEntity.status(status).body(detail);
     }
 
@@ -60,7 +63,8 @@ public class PaymentApiExceptionHandler {
         var detail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
         detail.setTitle("Bad Request");
         detail.setDetail("The request failed validation.");
-        detail.setType(URI.create("about:blank"));
+        detail.setType(PaymentApiErrorCode.VALIDATION_FAILED.type());
+        detail.setProperty("code", PaymentApiErrorCode.VALIDATION_FAILED.value());
         return ResponseEntity.badRequest().body(detail);
     }
 }
