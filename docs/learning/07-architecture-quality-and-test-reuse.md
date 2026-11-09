@@ -1,6 +1,6 @@
 # Milestone 07.1 — Architecture boundaries and test-support reuse
 
-**Status:** Implementation committed; check the current GitHub CI before calling it verified.
+**Status:** Implemented and GitHub CI verified at commit `5d451da` (2026-11-09).
 
 ## What problem did we find?
 
@@ -86,8 +86,8 @@ A: Avoid repeating *knowledge and policy*. The Kafka image and client defaults a
 - [x] Reusable test-only Kafka support introduced.
 - [x] Producer contract and Postgres→Kafka E2E tests migrated without deleting their assertions.
 - [x] Two dependency-direction rules added.
-- [ ] Latest Java CI green (existing 89 tests plus two architecture tests = **91 expected**).
-- [ ] Latest Security CI green.
+- [x] [Java CI #213](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42559688890): **91/91 passed**, including 48 fast (2 new ArchUnit) and 43 integration tests.
+- [x] [Security CI #127](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42559688802): Gitleaks and Trivy passed.
 - [ ] Local verification on Mac recorded with the exact commit.
 
 **Next increment:** apply the same evidence-driven approach to JWT principal extraction and trusted Kafka consumer/event contracts. Only extract production modules after agreeing on domain ownership and interface boundaries.
