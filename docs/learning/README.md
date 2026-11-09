@@ -80,6 +80,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [18 — Jackson dependency governance](18-jackson-dependency-governance.md)
 - [19 — Merchant identifier object invariants](19-merchant-identifier-contract-consistency.md)
 - [20 — Canonical Kafka UUID validation](20-kafka-canonical-uuid-validation.md)
+- [21 — Merchant identifier contract policy and Unicode compatibility](21-merchant-identifier-contract-policy.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
