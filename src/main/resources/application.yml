@@ -51,7 +51,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: ${PAYMENT_ACTUATOR_EXPOSE:health,info}
   endpoint:
     health:
       show-details: never
