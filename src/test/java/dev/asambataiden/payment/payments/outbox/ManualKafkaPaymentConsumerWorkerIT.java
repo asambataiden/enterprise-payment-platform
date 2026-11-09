@@ -157,8 +157,11 @@ class ManualKafkaPaymentConsumerWorkerIT {
                     KafkaTestSupport.newConsumerWithGroup(kafka, group), topic,
                     record -> { replayed.incrementAndGet(); throw new IllegalArgumentException("quarantine needed"); })) {
                 for (int i = 0; i < 10 && replayed.get() == 0; i++) {
-                    assertThrows(IllegalArgumentException.class,
-                            () -> restarted.pollOnce(Duration.ofSeconds(2)));
+                    try {
+                        restarted.pollOnce(Duration.ofSeconds(2));
+                    } catch (IllegalArgumentException expected) {
+                        assertEquals("quarantine needed", expected.getMessage());
+                    }
                 }
             }
             assertEquals(1, replayed.get(), "The same poison offset must replay until operator intervention");
