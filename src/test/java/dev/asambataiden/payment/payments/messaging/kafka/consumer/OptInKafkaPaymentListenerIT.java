@@ -103,6 +103,51 @@ class OptInKafkaPaymentListenerIT {
     }
 
     @Test
+    void failedAcknowledgmentAfterDatabaseCommitReplaysWithoutDuplicateEffect() throws Exception {
+        String topic = "payment.simulated.ack.failure.it";
+        String merchant = "ack-recovery-owner";
+        UUID paymentId = payments.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("17.00"), "EUR", "ack-recovery")).id();
+        UUID eventId = UUID.randomUUID();
+        transitions.advance(merchant, paymentId, eventId, PaymentState.AUTHORIZED);
+
+        var event = new PaymentOutboxEvent(
+                1, eventId, merchant, paymentId, "AUTHORIZED");
+        var payload = tools.jackson.databind.json.JsonMapper.builder().build();
+        var record = new ConsumerRecord<String, String>(
+                topic, 0, 17L, merchant + ":" + paymentId,
+                payload.writeValueAsString(event));
+
+        var failedAck = mock(Acknowledgment.class);
+        doThrow(new IllegalStateException("Simulated broker commit failure"))
+                .when(failedAck).acknowledge();
+
+        var target = listener(topic);
+        assertThrows(IllegalStateException.class,
+                () -> target.onMessage(record, failedAck));
+
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM payment_inbox
+                WHERE consumer_name='simulated-projection-v1'
+                  AND merchant_id=? AND event_id=?
+                """, Integer.class, merchant, eventId));
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM payment_event_projection
+                WHERE merchant_id=? AND event_id=?
+                """, Integer.class, merchant, eventId));
+
+        var retryAck = mock(Acknowledgment.class);
+        target.onMessage(record, retryAck);
+        verify(retryAck).acknowledge();
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM payment_event_projection
+                WHERE merchant_id=? AND event_id=?
+                """, Integer.class, merchant, eventId));
+        assertEquals(1.0, metrics.get("payment.kafka.consumer.records")
+                .tag("outcome", "replayed").counter().count());
+    }
+
+    @Test
     void invalidEventCannotAckOrChangeProjection() {
         String topic = "payment.simulated.events.v1";
         var acknowledgment = mock(Acknowledgment.class);
