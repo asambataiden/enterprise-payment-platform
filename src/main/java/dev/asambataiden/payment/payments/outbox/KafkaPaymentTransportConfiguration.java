@@ -19,13 +19,19 @@ public class KafkaPaymentTransportConfiguration {
     KafkaPaymentEventPublisher kafkaPaymentEventPublisher(
             KafkaTemplate<String, String> kafka,
             @Value("${payment.messaging.kafka.topic}") String topic,
-            @Value("${KAFKA_BOOTSTRAP_SERVERS:}") String bootstrap,
-            @Value("${KAFKA_SECURITY_PROTOCOL:SASL_SSL}") String protocol) {
+            @Value("${KAFKA_BOOTSTRAP_SERVERS:}") String bootstrap) {
         if (bootstrap.isBlank()) {
             throw new IllegalStateException("KAFKA_BOOTSTRAP_SERVERS is required when Kafka is enabled");
         }
-        if (!"SASL_SSL".equals(protocol) && !"SSL".equals(protocol)) {
-            throw new IllegalStateException("Kafka publishing requires SASL_SSL or SSL");
+        Object effectiveProtocol = kafka.getProducerFactory()
+                .getConfigurationProperties().get("security.protocol");
+        if (!"SASL_SSL".equals(effectiveProtocol) && !"SSL".equals(effectiveProtocol)) {
+            throw new IllegalStateException("Kafka producer must use SASL_SSL or SSL");
+        }
+        Object effectiveAcks = kafka.getProducerFactory()
+                .getConfigurationProperties().get("acks");
+        if (!"all".equals(String.valueOf(effectiveAcks)) && !"-1".equals(String.valueOf(effectiveAcks))) {
+            throw new IllegalStateException("Kafka producer requires acks=all");
         }
         return new KafkaPaymentEventPublisher(kafka, topic);
     }
