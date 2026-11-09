@@ -102,8 +102,13 @@ public final class LocalKafkaPaymentRecordProcessor {
     }
 
     private static UUID uuid(Map<?, ?> fields, String key) {
+        String value = string(fields, key);
+        if (!value.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}"
+                + "-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            throw new IllegalArgumentException("Invalid canonical event UUID: " + key);
+        }
         try {
-            return UUID.fromString(string(fields, key));
+            return UUID.fromString(value);
         } catch (IllegalArgumentException invalid) {
             throw new IllegalArgumentException("Invalid event UUID: " + key, invalid);
         }
