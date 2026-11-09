@@ -14,11 +14,14 @@ import org.springframework.kafka.support.Acknowledgment;
 public final class OptInKafkaPaymentListener {
     private final LocalKafkaPaymentRecordProcessor processor;
     private final LocalPaymentEventProjection projection;
+    private final KafkaConsumerFailureObservations observations;
 
     public OptInKafkaPaymentListener(LocalKafkaPaymentRecordProcessor processor,
-                                     LocalPaymentEventProjection projection) {
+                                     LocalPaymentEventProjection projection,
+                                     KafkaConsumerFailureObservations observations) {
         this.processor = Objects.requireNonNull(processor);
         this.projection = Objects.requireNonNull(projection);
+        this.observations = Objects.requireNonNull(observations);
     }
 
     @KafkaListener(id = "simulated-payment-projection-v1",
@@ -27,7 +30,21 @@ public final class OptInKafkaPaymentListener {
             containerFactory = "paymentManualAckListenerFactory",
             autoStartup = "${payment.messaging.kafka.consumer.enabled:false}")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
-        processor.processWithEvent("simulated-projection-v1", record, projection::record);
+        try {
+            processor.processWithEvent("simulated-projection-v1", record, projection::record);
+        } catch (RuntimeException failure) {
+            String category = failure instanceof SecurityException ? "UNTRUSTED_EVENT"
+                    : failure instanceof IllegalArgumentException ? "INVALID_CONTRACT"
+                    : "PROCESSING_FAILURE";
+            try {
+                observations.record("simulated-projection-v1", record, category);
+            } catch (RuntimeException observationFailure) {
+                failure.addSuppressed(observationFailure);
+            }
+            // Deliberately do not acknowledge a failed record. The container
+            // stopping error handler halts the partition for operator review.
+            throw failure;
+        }
         Objects.requireNonNull(acknowledgment, "MANUAL_IMMEDIATE acknowledgment required").acknowledge();
     }
 }
