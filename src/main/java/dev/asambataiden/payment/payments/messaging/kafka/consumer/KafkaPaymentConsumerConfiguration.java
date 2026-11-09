@@ -37,10 +37,7 @@ public class KafkaPaymentConsumerConfiguration {
         if (!"SSL".equals(protocol) && !"SASL_SSL".equals(protocol)) {
             throw new IllegalStateException("Kafka consumer requires an encrypted TLS transport");
         }
-        Object autoCommit = properties.get(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG);
-        if (Boolean.TRUE.equals(autoCommit) || "true".equalsIgnoreCase(String.valueOf(autoCommit))) {
-            throw new IllegalStateException("Kafka consumer auto-offset commit must be disabled");
-        }
+        requireExplicitManualOffsetCommit(properties);
 
         var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
         factory.setConsumerFactory(consumerFactory);
@@ -49,6 +46,19 @@ public class KafkaPaymentConsumerConfiguration {
         factory.getContainerProperties().setSyncCommits(true);
         factory.setCommonErrorHandler(new CommonContainerStoppingErrorHandler());
         return factory;
+    }
+
+    /**
+     * Never infer safe offset behavior from Kafka client defaults.
+     * The committed DB transaction must precede the sole offset commit.
+     */
+    static void requireExplicitManualOffsetCommit(Map<String, Object> properties) {
+        Object autoCommit = properties.get(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG);
+        if (!Boolean.FALSE.equals(autoCommit)
+                && !"false".equalsIgnoreCase(String.valueOf(autoCommit))) {
+            throw new IllegalStateException(
+                    "Kafka consumer requires enable.auto.commit explicitly false");
+        }
     }
 
     @Bean
