@@ -214,3 +214,43 @@ the correct evidence for each claimed security property.
 architecture decisions, sequence diagrams, operational chronology,
 test evidence and lessons learned versioned together. Explicitly track
 known gaps and changes to accepted practices.
+
+
+## Milestone 06.7AB — November 9, 2026 verified execution
+
+**Source baseline:** developer pulled `feat/payment-ledger` through
+`0c5eaa3` before testing. A Maven invocation anchored to the repository's
+`pom.xml` completed at **17:58:51 CET** with **85 unit tests** and **67
+application integration tests**, no failures, errors or skips. PostgreSQL
+17 Testcontainers, Kafka Testcontainers, and eight Flyway migrations were
+exercised as part of the ordinary application regression.
+
+The separate mTLS-secured broker E2E invocation completed at
+**17:59:16 CET** with **9 tests, 0 failures, 0 errors, 0 skipped**:
+
+- `KafkaPrincipalAuthorizationE2E`: **4 passed** (dedicated producer
+  permitted Write, producer denied other topic, consumer permitted approved
+  group, consumer denied forbidden group).
+- `SecuredKafkaBrokerE2E`: **2 passed** (allowed Describe and restricted
+  topic denial).
+- `KafkaNegativeSecurityE2E`: **3 passed** (missing client certificate,
+  unrelated CA truststore, and forbidden Write by the Describe-only client).
+
+**Expected failure log signals** included
+`GroupAuthorizationException` for `payment-security-forbidden`, and
+TLS exceptions for an untrusted CA and a missing client identity. An approved
+consumer group also logged a transient `NotCoordinatorException` while
+joining; its test nevertheless passed. These exceptions must be evaluated
+in the context of explicit assertions, not by grepping for the word ERROR.
+
+**Evidence limit:** only this local developer execution is supported;
+this does not prove production Kafka authorization, real payment movement,
+producer idempotence permissions or certificate rotation. The submitted
+log does not show cleanup of the new lab session, so teardown remains
+pending separately.
+
+**Learning point:** Kafka topic Write, topic Read and group Read are distinct
+permissions, exercised with separate service certificates. A passing
+negative security test is a precisely asserted, intentional refusal—not
+an arbitrary connection failure. Record both the successful baseline and
+the negative rejection when demonstrating least privilege.
