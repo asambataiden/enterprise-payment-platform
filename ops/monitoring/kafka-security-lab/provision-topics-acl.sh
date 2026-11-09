@@ -22,7 +22,7 @@ for _ in {1..30}; do
 done
 "${broker_exec[@]}" "${admin[@]}" --list >/dev/null
 
-for topic in payment.security.allowed payment.security.denied; do
+for topic in payment.security.allowed payment.security.denied payment.security.stream; do
   if ! "${broker_exec[@]}" "${admin[@]}" --describe --topic "$topic" >/dev/null 2>&1; then
     "${broker_exec[@]}" "${admin[@]}" --create --topic "$topic" \
       --partitions 1 --replication-factor 1
@@ -32,5 +32,19 @@ done
 "${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-reader' \
   --operation Describe --topic payment.security.allowed
 "${broker_exec[@]}" "${acl[@]}" --list --topic payment.security.allowed
+# Separate application identities and exact resource scopes.
+# The producer can write only to the stream topic; no broad topic wildcard.
+"${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-producer' \
+  --operation Write --topic payment.security.stream
+
+# The consumer can read only from the stream topic and join the named group.
+# Topic Describe is granted explicitly to make metadata access unambiguous.
+"${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-consumer' \
+  --operation Read --operation Describe --topic payment.security.stream
+"${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-consumer' \
+  --operation Read --group payment-security-approved
+
+"${broker_exec[@]}" "${acl[@]}" --list --topic payment.security.stream
+"${broker_exec[@]}" "${acl[@]}" --list --group payment-security-approved
 echo "Secured lab ready: reader can Describe the allowed topic only."
 echo "Restricted topic must return TopicAuthorizationException in the E2E test."
