@@ -49,6 +49,16 @@ class SecuredKafkaBrokerE2E {
                     required("PAYMENT_SECURE_KAFKA_TRUSTSTORE_PASSWORD"));
         }
 
+        String keyStore = System.getenv("PAYMENT_SECURE_KAFKA_KEYSTORE_LOCATION");
+        if (keyStore != null && !keyStore.isBlank()) {
+            config.put("ssl.keystore.location", keyStore);
+            config.put("ssl.keystore.type", "PKCS12");
+            config.put("ssl.keystore.password",
+                    required("PAYMENT_SECURE_KAFKA_KEYSTORE_PASSWORD"));
+            config.put("ssl.key.password",
+                    required("PAYMENT_SECURE_KAFKA_KEY_PASSWORD"));
+        }
+
         if ("SASL_SSL".equals(config.get(AdminClientConfig.SECURITY_PROTOCOL_CONFIG))) {
             config.put("sasl.mechanism", required("PAYMENT_SECURE_KAFKA_SASL_MECHANISM"));
             config.put("sasl.jaas.config", required("PAYMENT_SECURE_KAFKA_SASL_JAAS"));
