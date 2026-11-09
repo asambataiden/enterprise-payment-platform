@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Testcontainers
 class KafkaPaymentEventPublisherIT {
     @Container
-    static final KafkaContainer kafka = new KafkaContainer("apache/kafka-native:4.1.0");
+    static final KafkaContainer kafka = new KafkaContainer("apache/kafka:4.1.2");
 
     @Test
     void brokerAcknowledgesVersionedEventsWithStablePaymentPartitionKeyAndOrder() throws Exception {
