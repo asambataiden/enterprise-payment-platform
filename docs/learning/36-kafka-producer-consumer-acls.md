@@ -1,7 +1,7 @@
 # Chapter 36 — Kafka Producer and Consumer Group Least Privilege
 
-**Milestone:** 06.7AB. **State:** implemented and committed, **not yet executed** on the development Mac.
-**Previous verified checkpoint:** 152 application tests and 5 secured-broker E2E tests passed on November 9, 2026. The new suite expects 9 E2E tests.
+**Milestone:** 06.7AB. **State:** verified on the development Mac, November 9, 2026.
+**Evidence:** 85 unit tests and 67 application integration tests passed in Maven `clean verify` (17:58:51 CET); a separate secured-broker Maven execution passed all 9 E2E tests (17:59:16 CET), including 4 producer/consumer authorization cases. This is disposable lab verification, **not** production certification.
 
 ## 1. Business use case
 
@@ -106,9 +106,9 @@ bash provision-topics-acl.sh
 bash run-e2e.sh
 ```
 
-**Acceptance criteria (not yet verified):**
+**Acceptance criteria (verified November 9, 2026):**
 
-- 152 default application tests, assuming no unrelated regression.
+- **Observed:** 152 default application tests passed (85 unit, 67 integration) at 17:58:51 CET.
 - 2 existing positive broker E2E, 3 existing negative security E2E.
 - 4 additional producer and consumer authorization E2E:
   1. Authorized producer publishes dummy event to the stream.
@@ -117,9 +117,8 @@ bash run-e2e.sh
   3. Approved consumer group retrieves a uniquely identified marker.
   4. Consumer joining the forbidden group receives
      `GroupAuthorizationException`.
-- Target total: **9 real secured-broker E2E** passes, with zero failed,
-  errored or skipped tests. Until the developer shares output this remains
-  an expected result, **not recorded evidence**.
+- **Observed:** 9 real secured-broker E2E tests passed, zero failed,
+  errored or skipped, at 17:59:16 CET.
 
 The test itself sets `enable.auto.commit=false` and uses a synthetic
 marker rather than making a payment business state change.
@@ -210,3 +209,35 @@ No. It exercises four broker permissions in one disposable KRaft
 development topology. Production readiness also requires managed
 secrets, secured controllers, replication, auditability and failure
 recovery, plus deployment-specific network and policy checks.
+
+## 10. Actual execution observations and test interpretation
+
+The provided November 9, 2026 log shows:
+
+| Test class | Passed | Failures | Errors | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| `KafkaPrincipalAuthorizationE2E` | 4 | 0 | 0 | 0 |
+| `SecuredKafkaBrokerE2E` | 2 | 0 | 0 | 0 |
+| `KafkaNegativeSecurityE2E` | 3 | 0 | 0 | 0 |
+| **Secured-broker total** | **9** | **0** | **0** | **0** |
+
+The consumer's attempted forbidden-group membership generated
+`GroupAuthorizationException: Not authorized to access group: payment-security-forbidden`.
+This is expected rejection evidence. The log also records an initial
+`NotCoordinatorException` during approved group coordination; the consumer
+recovered and its positive read test passed. A transient coordinator change
+must not be confused with a successful unauthorized-group rejection.
+
+For the older negative TLS cases, the log contains expected
+`PKIX path building failed` and `certificate_required` errors. Those
+intentional failures did not cause the test suite to fail.
+
+**Test execution count:** 152 application + 9 separate E2E = 161 passing
+executions across two Maven invocations. The container and credentials have
+**not** been shown torn down in this specific run; obtain a distinct cleanup
+transcript before closing the operator session.
+
+**Production limitations remain:** Kafka producer idempotence was disabled
+only in this focused ACL drill, no idempotent producer ACL was verified,
+there was no broker credential rotation or revocation, and this is not a
+replicated secured-controller Kafka deployment.
