@@ -100,8 +100,13 @@ class PaymentOpenApiIT {
             }
             if (contract.containsKey("required")) {
                 List<?> required = schema.get("required") instanceof List<?> fields ? fields : List.of();
-                for (Object field : (List<?>) contract.get("required")) {
+                List<?> reviewedRequired = (List<?>) contract.get("required");
+                for (Object field : reviewedRequired) {
                     assertTrue(required.contains(field), "Missing required input: " + name + "." + field);
+                }
+                for (Object field : required) {
+                    assertTrue(reviewedRequired.contains(field),
+                            "Breaking newly required input: " + name + "." + field);
                 }
             }
         }
