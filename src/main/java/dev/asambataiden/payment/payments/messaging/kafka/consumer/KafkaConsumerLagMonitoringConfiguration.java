@@ -46,8 +46,14 @@ public class KafkaConsumerLagMonitoringConfiguration {
             MeterRegistry registry,
             @Value("${payment.messaging.kafka.consumer.group-id}") String groupId,
             @Value("${payment.messaging.kafka.topic}") String topic,
+            @Value("${payment.messaging.kafka.consumer.lag-monitor.interval-ms:30000}")
+                    long intervalMillis,
             @Value("${payment.messaging.kafka.consumer.lag-monitor.maximum-age-ms:120000}")
                     long maximumAgeMillis) {
+        if (intervalMillis < 5000 || maximumAgeMillis < intervalMillis) {
+            throw new IllegalStateException(
+                    "Lag monitor requires interval >= 5000 ms and maximum age >= interval");
+        }
         var assessment = new KafkaConsumerLagAssessment(paymentConsumerLagAdmin, groupId, topic);
         return new KafkaConsumerLagMetrics(
                 assessment::sample, registry, Clock.systemUTC(), Duration.ofMillis(maximumAgeMillis));
