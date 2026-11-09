@@ -11,6 +11,28 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        max.block.ms: 5000
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
+payment:
+  messaging:
+    kafka:
+      enabled: ${PAYMENT_KAFKA_ENABLED:false}
+      topic: ${PAYMENT_KAFKA_TOPIC:payment.simulated.events.v1}
+
 management:
   endpoints:
     web:
