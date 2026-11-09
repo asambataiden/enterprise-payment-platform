@@ -56,4 +56,17 @@ class PaymentArchitectureTest {
                     .should().dependOnClassesThat()
                     .resideInAnyPackage("org.springframework..", "jakarta.persistence..",
                             "..payments.api..", "..payments.infrastructure..");
+    @ArchTest
+    static final ArchRule ledger_domain_stays_framework_independent =
+            noClasses().that().resideInAPackage("..ledger.domain..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("org.springframework..", "jakarta.persistence..",
+                            "org.apache.kafka..", "..payments.api..", "..payments.outbox..");
+
+    @ArchTest
+    static final ArchRule payment_domain_stays_transport_independent =
+            noClasses().that().resideInAPackage("..payments.domain..")
+                    .should().dependOnClassesThat()
+                    .resideInAnyPackage("org.apache.kafka..", "org.springframework.kafka..",
+                            "..payments.outbox..");
 }
