@@ -4,6 +4,8 @@
 
 ## Learning contract
 
+For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
+
 Each milestone must answer **WHAT**, **WHY**, **HOW**, **ALTERNATIVES**, **FAILURE MODES**, **PROOF**, **INDUSTRY CONTEXT**, and **HOW TO EXPLAIN IT IN AN INTERVIEW**. Every meaningful change to implementation or infrastructure must update the relevant architecture, scenario, ADR, evidence and operations documentation **in the same PR**. This documentation is versioned alongside the code.
 
 ### Foundational chapters (01–06)
@@ -94,6 +96,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [32 — Secured Kafka broker integration and ACL-denial contract](32-secured-kafka-broker-e2e-contract.md)
 - [33 — Disposable mTLS Kafka security lab and ACL verification](33-disposable-mtls-kafka-security-lab.md)
 - [34 — Kafka negative mTLS and authorization security tests](34-kafka-negative-security-tests.md)
+- [35 — Execution evidence, operator errors and retrospective learning](35-execution-evidence-and-retrospective-runbook.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
