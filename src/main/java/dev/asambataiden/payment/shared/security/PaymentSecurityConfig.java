@@ -27,6 +27,8 @@ public class PaymentSecurityConfig {
                 .formLogin(form -> form.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**")
+                            .hasAuthority("SCOPE_payments:docs")
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments")
                             .hasAuthority("SCOPE_payments:write")
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/*")
