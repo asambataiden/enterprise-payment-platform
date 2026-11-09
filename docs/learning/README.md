@@ -90,6 +90,7 @@ We use a pragmatic combination of [C4's zoom levels](https://c4model.com/introdu
 - [28 — Cached Kafka lag monitoring and operational metrics](28-kafka-lag-monitoring-cached-metrics.md)
 - [29 — Secure Prometheus export and alert integration](29-secure-prometheus-export-and-alerting.md)
 - [30 — Real Kafka transient-failure and controlled recovery drill](30-kafka-real-recovery-drill.md)
+- [31 — Kafka deployment transport security and least privilege](31-kafka-deployment-transport-security.md)
 
 The foundational chapters are retrospective teaching material. Recheck the current
 repository implementation and tests before asserting any behavior as verified.
