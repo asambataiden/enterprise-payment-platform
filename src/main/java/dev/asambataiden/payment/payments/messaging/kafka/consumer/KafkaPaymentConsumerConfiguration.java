@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.listener.CommonContainerStoppingErrorHandler;
 import org.springframework.kafka.listener.ContainerProperties;
@@ -59,6 +60,12 @@ public class KafkaPaymentConsumerConfiguration {
             throw new IllegalStateException(
                     "Kafka consumer requires enable.auto.commit explicitly false");
         }
+    }
+
+    @Bean
+    KafkaPaymentConsumerLifecycleMonitor kafkaPaymentConsumerLifecycleMonitor(
+            KafkaListenerEndpointRegistry listenerRegistry, MeterRegistry meterRegistry) {
+        return new KafkaPaymentConsumerLifecycleMonitor(listenerRegistry, meterRegistry);
     }
 
     @Bean
