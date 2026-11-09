@@ -52,8 +52,13 @@ public final class KafkaTestSupport {
     }
 
     public static KafkaConsumer<String, String> newConsumer(KafkaContainer broker, String groupPrefix) {
-        if (groupPrefix == null || groupPrefix.isBlank()) {
-            throw new IllegalArgumentException("Group prefix is required");
+        return newConsumerWithGroup(broker, groupPrefix + "-" + UUID.randomUUID());
+    }
+
+    /** Stable group for testing offset commit/restart and replay. */
+    public static KafkaConsumer<String, String> newConsumerWithGroup(KafkaContainer broker, String groupId) {
+        if (groupId == null || groupId.isBlank()) {
+            throw new IllegalArgumentException("Group ID is required");
         }
         Map<String, Object> properties = new HashMap<>();
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, broker.getBootstrapServers());
