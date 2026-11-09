@@ -206,11 +206,45 @@ class PaymentEventContractTest {
                 .contains(payload.get("targetState"));
     }
 
+    @Test
+    void rejectsAbbreviatedUuidsAtContractBoundary() throws Exception {
+        Map<String, Object> shortEvent = validPayload();
+        shortEvent.put("eventId", "1-1-1-1-1");
+        assertFalse(isValidV1(shortEvent));
+
+        Map<String, Object> shortPayment = validPayload();
+        shortPayment.put("paymentId", "1-1-1-1-1");
+        assertFalse(isValidV1(shortPayment));
+    }
+
+    @Test
+    void documentsUnicodeMerchantLengthCompatibilityGap() throws Exception {
+        String supplementary = "\uD83D\uDE80".repeat(65);
+        assertEquals(65, supplementary.codePointCount(0, supplementary.length()));
+        assertEquals(130, supplementary.length());
+
+        Map<String, Object> schemaPayload = validPayload();
+        schemaPayload.put("merchantId", supplementary);
+
+        // A JSON Schema maxLength of 128 counts code points.
+        assertTrue(isValidV1(schemaPayload));
+
+        // Existing Java event constructors use UTF-16 code units instead.
+        assertThrows(IllegalArgumentException.class,
+                () -> new PaymentOutboxEvent(
+                        1, UUID.randomUUID(), supplementary,
+                        UUID.randomUUID(), "AUTHORIZED"));
+    }
+
     private static boolean validUuid(Object value) {
         if (!(value instanceof String text)) {
             return false;
         }
 
+        if (!text.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}"
+                + "-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            return false;
+        }
         try {
             UUID.fromString(text);
             return true;
