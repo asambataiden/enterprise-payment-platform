@@ -49,7 +49,8 @@ class OptInKafkaPaymentListenerIT {
         return new OptInKafkaPaymentListener(
                 new LocalKafkaPaymentRecordProcessor(topic,
                         new TrustedPaymentEventConsumer(jdbc, manager)),
-                new LocalPaymentEventProjection(jdbc));
+                new LocalPaymentEventProjection(jdbc),
+                new KafkaConsumerFailureObservations(jdbc, manager));
     }
 
     @Test
@@ -103,8 +104,57 @@ class OptInKafkaPaymentListenerIT {
                 """.formatted(eventId, UUID.randomUUID()));
         assertThrows(IllegalArgumentException.class, () -> listener(topic).onMessage(record, acknowledgment));
         verifyNoInteractions(acknowledgment);
+        assertEquals(1, jdbc.queryForObject("""
+                SELECT COUNT(*) FROM kafka_consumer_failure_observations
+                WHERE consumer_name='simulated-projection-v1' AND topic=? AND partition_number=0
+                  AND record_offset=0 AND failure_category='INVALID_CONTRACT'
+                """, Integer.class, topic));
         assertEquals(0, jdbc.queryForObject(
                 "SELECT COUNT(*) FROM payment_event_projection WHERE event_id=?",
                 Integer.class, eventId));
+    }
+    @Test
+    void repeatedPoisonRecordIsObservedWithoutAcknowledgingOrStoringRawPayload() {
+        String topic = "payment.simulated.poison.observation.it";
+        String secretMarker = "NOT_FOR_PERSISTENCE_" + UUID.randomUUID();
+        var record = new ConsumerRecord<String, String>(topic, 1, 77L, "key", "{invalid" + secretMarker);
+        var ack = mock(Acknowledgment.class);
+        var listener = listener(topic);
+
+        assertThrows(IllegalArgumentException.class, () -> listener.onMessage(record, ack));
+        assertThrows(IllegalArgumentException.class, () -> listener.onMessage(record, ack));
+
+        verifyNoInteractions(ack);
+        var counts = jdbc.queryForMap("""
+                SELECT occurrence_count, failure_category, payload_sha256
+                FROM kafka_consumer_failure_observations
+                WHERE consumer_name='simulated-projection-v1' AND topic=? AND partition_number=1
+                  AND record_offset=77
+                """, topic);
+        assertEquals(2, ((Number) counts.get("occurrence_count")).intValue());
+        assertEquals("INVALID_CONTRACT", counts.get("failure_category"));
+        assertEquals(64, ((String) counts.get("payload_sha256")).length());
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payment_event_projection", Integer.class));
+    }
+
+    @Test
+    void forgedValidEnvelopeProducesSecurityObservationAndNoAck() {
+        String topic = "payment.simulated.provenance.observation.it";
+        UUID eventId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        String payload = """
+                {"schemaVersion":1,"eventId":"%s","merchantId":"untrusted","paymentId":"%s","targetState":"AUTHORIZED"}
+                """.formatted(eventId, paymentId);
+        var record = new ConsumerRecord<String, String>(topic, 0, 99,
+                "untrusted:" + paymentId, payload);
+        var ack = mock(Acknowledgment.class);
+        assertThrows(SecurityException.class, () -> listener(topic).onMessage(record, ack));
+        verifyNoInteractions(ack);
+        assertEquals("UNTRUSTED_EVENT", jdbc.queryForObject("""
+                SELECT failure_category FROM kafka_consumer_failure_observations
+                WHERE consumer_name='simulated-projection-v1' AND topic=? AND partition_number=0
+                  AND record_offset=99
+                """, String.class, topic));
     }
 }
