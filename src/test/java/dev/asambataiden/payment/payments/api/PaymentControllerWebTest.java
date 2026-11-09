@@ -64,7 +64,8 @@ class PaymentControllerWebTest {
                 .andExpect(header().string("Content-Type",
                         org.hamcrest.Matchers.startsWith("application/problem+json")))
                 .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.title").value("Not Found"));
+                .andExpect(jsonPath("$.title").value("Not Found"))
+                .andExpect(jsonPath("$.code").value("PAYMENT_NOT_FOUND"));
     }
 
     @Test
@@ -81,7 +82,8 @@ class PaymentControllerWebTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
-                .andExpect(jsonPath("$.title").value("Conflict"));
+                .andExpect(jsonPath("$.title").value("Conflict"))
+                .andExpect(jsonPath("$.code").value("PAYMENT_IDEMPOTENCY_CONFLICT"));
     }
 
     @Test
@@ -95,7 +97,8 @@ class PaymentControllerWebTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.title").value("Bad Request"));
+                .andExpect(jsonPath("$.title").value("Bad Request"))
+                .andExpect(jsonPath("$.code").value("PAYMENT_VALIDATION_FAILED"));
     }
 
     @Test
