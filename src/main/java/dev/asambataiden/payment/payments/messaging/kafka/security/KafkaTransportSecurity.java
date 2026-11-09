@@ -15,7 +15,7 @@ public final class KafkaTransportSecurity {
 
     public static void validate(Map<String, ?> configuration) {
         Objects.requireNonNull(configuration, "Kafka client configuration is required");
-        String protocol = String.valueOf(configuration.getOrDefault("security.protocol", ""));
+        String protocol = String.valueOf(configuration.get("security.protocol"));
         if (!"SSL".equals(protocol) && !"SASL_SSL".equals(protocol)) {
             throw new IllegalStateException("Kafka requires SSL or SASL_SSL transport");
         }
