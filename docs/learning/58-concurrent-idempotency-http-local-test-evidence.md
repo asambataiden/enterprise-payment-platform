@@ -30,6 +30,47 @@ These are verified **test outcomes**, not real financial transactions.
 The integration-test log reports the aggregate 8-test class result;
 individual assertions are understood from the committed test source.
 
+## Repeat execution — reproducibility check
+
+A second developer-supplied local terminal log records an additional
+execution on **2026-11-10 at 10:31 Europe/Berlin** using:
+
+```bash
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" \
+    -Dit.test=PaymentBearerTokenIT verify
+```
+
+This repeat was performed after the previous successful targeted test.
+The uploaded log shows no source modifications or fresh pull between
+the two commands; it is therefore a repeat of the same checked-out
+implementation, not independent evidence for a new commit.
+
+**Observed repeat:**
+
+| Evidence | Observed value |
+| --- | --- |
+| Surefire unit tests | 109, 0 failures, 0 errors, 0 skips |
+| Failsafe `PaymentBearerTokenIT` | 8, 0 failures, 0 errors, 0 skips |
+| Maven outcome | `BUILD SUCCESS` |
+| Total build time | 8.374 seconds |
+| Java | 25.0.5.0.3 |
+| Disposable database | PostgreSQL 17.11, `postgres:17-alpine` |
+| Schema | 9 Flyway migrations applied successfully |
+
+**Beginner explanation:** rerunning a test checks that the outcome is
+repeatable in the same environment. It does **not** prove absence of
+all possible race conditions, and two passing runs are not a
+statistical reliability guarantee. The logged `ERROR` entries in
+`PaymentApiExceptionHandler` belong to intentional negative-path
+unit tests; the test reports show zero failures. Never ignore an
+unexpected error just because the overall build is green—inspect its
+test context.
+
+Both local runs support the correctness lesson in Chapter 57.
+The six-stage performance results from Chapter 56 are a **different**
+kind of evidence and should not be confused with idempotency
+correctness tests.
+
 ## What happened? Everyday explanation
 
 Imagine a shop accidentally sends the same order **eight times at
