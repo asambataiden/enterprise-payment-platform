@@ -88,13 +88,18 @@ def execute(path, source):
     permits = threading.BoundedSemaphore(MAX_INFLIGHT)
     tasks = []
     max_inflight = 0
+    active = 0
+    active_lock = threading.Lock()
     max_lag_ns = 0
     origin = time.perf_counter_ns()
 
     def limited(n):
+        nonlocal active
         try:
             return send(n, port, run_id, tokens, urls, origin)
         finally:
+            with active_lock:
+                active -= 1
             permits.release()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as workers:
@@ -106,11 +111,14 @@ def execute(path, source):
             max_lag_ns = max(max_lag_ns, time.perf_counter_ns() - due)
             if not permits.acquire(blocking=False):
                 raise RuntimeError("Backpressure: more than 32 outstanding HTTP calls")
-            outstanding = MAX_INFLIGHT - permits._value
-            max_inflight = max(max_inflight, outstanding)
+            with active_lock:
+                active += 1
+                max_inflight = max(max_inflight, active)
             try:
                 tasks.append(workers.submit(limited, n))
             except Exception:
+                with active_lock:
+                    active -= 1
                 permits.release()
                 raise
         samples = [task.result(timeout=10) for task in tasks]
