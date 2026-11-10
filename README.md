@@ -125,6 +125,21 @@ integration is implemented. See
 [execution evidence](docs/learning/35-execution-evidence-and-retrospective-runbook.md).
 Trivy and Gitleaks do not constitute a complete security audit.
 
+## Database query performance and bounded reads
+
+Flyway V9 adds composite indexes for merchant-scoped newest-first
+payment search and per-payment outbox history. Both paths remain
+bounded to at most 101 fetched rows. Search and history execute in
+read-only transactions with a 5-second timeout. Hikari connection
+acquisition, validation timeout and maximum pool size can be tuned with
+`DB_CONNECTION_TIMEOUT_MS` (default 3000),
+`DB_VALIDATION_TIMEOUT_MS` (default 2000), and
+`DB_POOL_MAX_SIZE` (default 10). These values are training-lab
+defaults, not production capacity targets. Verify index access and
+measure actual workload plans before claiming any latency improvement.
+See [learning chapter 43](docs/learning/43-postgresql-query-performance-and-resilience.md).
+This increment requires full regression and CI verification.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
