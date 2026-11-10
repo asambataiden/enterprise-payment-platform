@@ -61,6 +61,15 @@ teaches the why, what, how, commands, measurements, limitations
 and interview defense. The runner is opt-in and its performance
 results cannot be claimed before the developer's local run.
 
+## Milestone 21 — Raw latency incident follow-up
+
+[Chapter 67: validated CSV findings, slow-request counts and sequence-level diagnosis](67-raw-request-clusters-latency-incident-evidence.md)
+records the 62 requests over 20 ms, 37 over 50 ms and 16 over 100 ms,
+all over-50-ms observations being concentrated in the 30–40-second
+scheduled window. The offline analyzer now includes *heuristic*
+sequence-cluster summaries; no JVM, host or DB root cause has
+yet been established.
+
 ## Milestone 21 — Verified large-corpus results and incident investigation
 
 [Chapter 66: actual 6,000-request results and a transient tail-latency spike](66-large-corpus-results-and-latency-spike-investigation.md)
