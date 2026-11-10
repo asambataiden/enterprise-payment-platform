@@ -6,6 +6,7 @@ import dev.asambataiden.payment.ledger.domain.LedgerPosting;
 import dev.asambataiden.payment.ledger.domain.PostingSide;
 import dev.asambataiden.payment.payments.domain.PaymentState;
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException;
 import dev.asambataiden.payment.payments.domain.PaymentStateMachine;
 import java.math.BigDecimal;
 import java.util.List;
@@ -61,7 +62,7 @@ public class SimulatedPaymentTransitionService {
         if (!previous.isEmpty()) {
             EventSnapshot old = previous.getFirst();
             if (!old.paymentId().equals(paymentId) || old.target() != target) {
-                throw new IllegalStateException("Simulated event ID reused for different transition");
+                throw new PaymentTransitionConflictException("Simulated event ID reused for different transition");
             }
             return old.target();
         }
@@ -71,7 +72,7 @@ public class SimulatedPaymentTransitionService {
                 UPDATE payments SET status = ?
                 WHERE id = ? AND merchant_id = ? AND status = ?
                 """, target.name(), paymentId, merchantId, current.state().name()) != 1) {
-            throw new IllegalStateException("Concurrent state update rejected");
+            throw new PaymentTransitionConflictException("Concurrent state update rejected");
         }
 
         // Full simulated refunds reverse the original capture accounting;
