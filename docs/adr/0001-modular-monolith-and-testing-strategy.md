@@ -1,3 +1,5 @@
+> **ADR IDENTIFIER COLLISION / TARGET STRATEGY.** This historical proposal shares `ADR-0001` with [the original modular-monolith decision](0001-modular-monolith.md). It describes a **microservices target**, not the v0.1.0 deployment shape. The released code is one Java deployable. Until a reviewed unique-ID migration, refer to both ADRs by their full filenames; see the [ADR register](README.md). This notice preserves the original decision text.
+
 # ADR-0001: Microservices target architecture and service-level engineering standards
 
 - **Status:** Accepted (supersedes the initial modular-monolith wording)
