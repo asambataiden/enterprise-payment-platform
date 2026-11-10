@@ -71,6 +71,16 @@ increment does **not** implement pagination of older entries. Dispatch
 timestamps do not guarantee downstream processing. These records do not
 establish a legally complete audit trail or real financial settlement.
 
+The simulation-only HTTP endpoint is **disabled by default**. The
+`SimulatedPaymentController` is registered only with
+`PAYMENT_SIMULATION_ENABLED=true` (equivalent to
+`payment.simulation.enabled=true`). Do not enable the endpoint in
+environments processing real funds. Even when enabled, requests
+require the dedicated `payments:simulate` JWT scope and merchant
+ownership. When disabled, the simulation endpoint is not mapped and
+is omitted from the OpenAPI surface. See
+[learning chapter 42](docs/learning/42-fail-closed-simulation-mode.md).
+
 The simulation-only endpoint accepts a validated JSON body such as
 `{"targetState":"AUTHORIZED"}`, a merchant-owned payment UUID and an
 `Event-Id` UUID. Reuse the **same event UUID** for retries of the same
