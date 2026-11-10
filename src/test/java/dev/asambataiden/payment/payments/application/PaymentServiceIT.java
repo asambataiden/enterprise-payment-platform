@@ -39,10 +39,49 @@ class PaymentServiceIT {
     PaymentService service;
 
     @Autowired
+    PaymentSearchService search;
+
+    @Autowired
     PaymentRepository repository;
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Test
+    void searchUsesKeysetPaginationAndNeverLeaksOtherMerchantsPayments() {
+        String merchant = "merchant-search-" + UUID.randomUUID();
+        String otherMerchant = "merchant-other-" + UUID.randomUUID();
+        String ref = "search-ref-" + UUID.randomUUID();
+        var first = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", ref));
+        var second = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("11.00"), "EUR", ref));
+        var third = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("12.00"), "EUR", ref));
+        var foreign = service.create(otherMerchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("99.00"), "EUR", ref));
+
+        var page1 = search.search(merchant, "RECEIVED", ref, 2, null);
+        assertEquals(2, page1.payments().size());
+        assertTrue(page1.hasMore());
+        assertNotNull(page1.nextCursor());
+        var page2 = search.search(merchant, "RECEIVED", ref, 2, page1.nextCursor());
+        assertEquals(1, page2.payments().size());
+        assertFalse(page2.hasMore());
+        assertNull(page2.nextCursor());
+
+        var ids = new java.util.HashSet<UUID>();
+        page1.payments().forEach(p -> assertTrue(ids.add(p.id())));
+        page2.payments().forEach(p -> assertTrue(ids.add(p.id())));
+        assertEquals(java.util.Set.of(first.id(), second.id(), third.id()), ids);
+        assertFalse(ids.contains(foreign.id()));
+        assertEquals(1, search.search(otherMerchant, "RECEIVED", ref, 10, null).payments().size());
+        assertTrue(search.search(merchant, "FAILED", ref, 10, null).payments().isEmpty());
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, null, ref, 101, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, null, ref, 10, "invalid%%%"));
+    }
 
     @Test
     void createsAndRetrievesPersistedPayment() {
