@@ -69,6 +69,21 @@ def analyze(csv_file, gc_file, mvn_file):
     if not events:
         print("NOTE: no matching GC/safepoint event lines in this log")
     print(f"VALIDATED rows=6000 anchor_jvm_uptime_ms={anchor_ms} matching_jvm_log_lines={len(events)}")
+    # Classify event lines by their JVM-uptime marker rather than by
+    # which first-60 lines happen to be printed. A JVM event marker may
+    # represent an event ending, rather than an event starting.
+    startup_events = [event for event in events if event[0] < 0]
+    measured_events = [event for event in events if 0 <= event[0] <= 60_000]
+    post_stage_events = [event for event in events if event[0] > 60_000]
+    print(f"JVM_EVENT_PHASE_COUNTS startup={len(startup_events)}"
+          f" measured={len(measured_events)} post_stage={len(post_stage_events)}")
+    print("MEASURED-STAGE GC/SAFEPOINT LOG LINES (first 40, JVM uptime offset)")
+    for offset, tags, message in measured_events[:40]:
+        print(f"jvm_uptime_offset_ms={offset} tags={tags} detail={message[:180]}")
+    if not measured_events:
+        print("No matching JVM event markers within the measured 60-second interval.")
+    print("The count is of matching log LINES, not distinct GC cycles or pauses.")
+
     print("OVER-50MS CLIENT REQUESTS (actual measured relative offsets)")
     slow = sorted((s for s in samples if s[3] > 50), key=lambda s: s[4])
     print(f"slow_requests_over50ms={len(slow)}")
