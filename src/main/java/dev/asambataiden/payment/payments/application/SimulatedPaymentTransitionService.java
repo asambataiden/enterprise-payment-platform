@@ -5,6 +5,7 @@ import dev.asambataiden.payment.ledger.domain.JournalEntry;
 import dev.asambataiden.payment.ledger.domain.LedgerPosting;
 import dev.asambataiden.payment.ledger.domain.PostingSide;
 import dev.asambataiden.payment.payments.domain.PaymentState;
+import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 import dev.asambataiden.payment.payments.domain.PaymentStateMachine;
 import java.math.BigDecimal;
 import java.util.List;
@@ -44,7 +45,7 @@ public class SimulatedPaymentTransitionService {
                         rs.getBigDecimal("amount"), rs.getString("currency")),
                 paymentId, merchantId);
         if (payments.isEmpty()) {
-            throw new IllegalArgumentException("Payment does not exist for merchant");
+            throw new PaymentNotFoundException(paymentId);
         }
         PaymentSnapshot current = payments.getFirst();
 
