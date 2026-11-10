@@ -4,6 +4,8 @@ import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictExc
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
 import dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -38,8 +40,9 @@ public class PaymentApiExceptionHandler {
                 PaymentApiErrorCode.TRANSITION_CONFLICT);
     }
 
-    @ExceptionHandler(DataAccessResourceFailureException.class)
-    ResponseEntity<ProblemDetail> databaseUnavailable(DataAccessResourceFailureException exception) {
+    @ExceptionHandler({DataAccessResourceFailureException.class,
+            CannotGetJdbcConnectionException.class, CannotCreateTransactionException.class})
+    ResponseEntity<ProblemDetail> databaseUnavailable(Exception exception) {
         // Intentionally do not pass the Throwable or its message to the logger.
         // JDBC driver exceptions may contain connection URLs or credentials.
         log.error("API failure category=DATABASE_RESOURCE_UNAVAILABLE code={} correlationId={}",
