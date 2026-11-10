@@ -27,3 +27,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check canonical Markdown local links
         run: python3 ops/docs/check-markdown-links.py
+      - name: Report historical Markdown link debt (non-blocking)
+        shell: bash
+        run: |
+          set +e
+          python3 ops/docs/check-markdown-links.py --all 2>&1 | tee docs-link-audit.txt
+          exit 0
