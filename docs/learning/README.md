@@ -103,8 +103,8 @@ and has not been executed locally for this commit.
 [Chapter 74: corrected padded GC-tag handling and regression tests](74-g1-pause-parser-regression-and-verified-evidence.md)
 documents why a valid JVM log incorrectly produced `count=0`,
 the whitespace normalization fix, unit tests using the
-observed G1 format, and the offline rerun. The expected
-12-pause summary is pending verification on the original Mac logs.
+observed G1 format, and the offline rerun. The 12-pause summary and three Python regression tests were subsequently
+**verified** against the saved Mac log evidence on November 10, 2026.
 
 ## Milestone 22 — Verified in-stage G1 pause timeline
 
