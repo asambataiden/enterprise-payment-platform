@@ -1,5 +1,7 @@
 package dev.asambataiden.payment.payments.domain;
 
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +36,40 @@ class PaymentStateMachineTest {
                 () -> PaymentStateMachine.transition(PaymentState.AUTHORIZED, PaymentState.REFUNDED));
         assertThrows(IllegalStateException.class,
                 () -> PaymentStateMachine.transition(PaymentState.REFUNDED, PaymentState.CAPTURED));
+    }
+
+    /**
+     * Exhaustive safety net: checks every pair rather than a few example flows.
+     * A future lifecycle extension must explicitly update this independent
+     * contract, making a business-rule change visible in code review.
+     */
+    @Test
+    void everyStateTransitionMatchesTheApprovedBusinessMatrix() {
+        Map<PaymentState, Set<PaymentState>> expected = Map.of(
+                PaymentState.RECEIVED, Set.of(
+                        PaymentState.AUTHORIZED, PaymentState.FAILED, PaymentState.CANCELLED),
+                PaymentState.AUTHORIZED, Set.of(
+                        PaymentState.CAPTURED, PaymentState.FAILED, PaymentState.CANCELLED),
+                PaymentState.CAPTURED, Set.of(PaymentState.REFUNDED),
+                PaymentState.FAILED, Set.of(),
+                PaymentState.CANCELLED, Set.of(),
+                PaymentState.REFUNDED, Set.of()
+        );
+        assertEquals(Set.of(PaymentState.values()), expected.keySet(),
+                "The business matrix must explicitly cover every lifecycle state");
+
+        for (PaymentState current : PaymentState.values()) {
+            for (PaymentState target : PaymentState.values()) {
+                if (expected.get(current).contains(target)) {
+                    assertEquals(target, PaymentStateMachine.transition(current, target),
+                            () -> "Approved transition: " + current + " -> " + target);
+                } else {
+                    assertThrows(IllegalStateException.class,
+                            () -> PaymentStateMachine.transition(current, target),
+                            () -> "Forbidden transition: " + current + " -> " + target);
+                }
+            }
+        }
     }
 
     @Test
