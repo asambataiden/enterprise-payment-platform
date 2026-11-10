@@ -47,6 +47,35 @@ class PaymentApiExceptionHandlerTest {
     }
 
     @Test
+    void databaseResourceOutageReturnsSanitized503WithRetryHint() {
+        var result = handler.databaseUnavailable(
+                new org.springframework.dao.DataAccessResourceFailureException(
+                        "private-db-host:5432 connection refused"));
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, result.getStatusCode());
+        assertEquals("SERVICE_UNAVAILABLE", result.getBody().getProperties().get("code"));
+        assertEquals(Boolean.TRUE, result.getBody().getProperties().get("retryable"));
+        assertEquals("A required service is temporarily unavailable.", result.getBody().getDetail());
+    }
+
+    @Test
+    void unexpectedFailureReturnsSanitized500WithoutInternals() {
+        var result = handler.unexpected(new IllegalStateException("SQL password=secret"));
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, result.getStatusCode());
+        assertEquals("INTERNAL_ERROR", result.getBody().getProperties().get("code"));
+        assertEquals("An unexpected error occurred.", result.getBody().getDetail());
+    }
+
+    @Test
+    void transitionConflictDoesNotExposeDomainDiagnostic() {
+        var result = handler.transitionConflict(
+                new dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException(
+                        "sensitive internal state"));
+        assertEquals(HttpStatus.CONFLICT, result.getStatusCode());
+        assertEquals("PAYMENT_TRANSITION_CONFLICT", result.getBody().getProperties().get("code"));
+        assertEquals("Simulated payment transition rejected", result.getBody().getDetail());
+    }
+
+    @Test
     void badRequestErrorHasStableNonSensitiveCode() {
         var response = handler.knownHttpError(new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.BAD_REQUEST, "Invalid idempotency header"));
