@@ -1,3 +1,5 @@
+> **ARCHIVED REVIEW — Pre-merge assessment dated 2026-11-08.** Its draft-state and merge-hold instructions were correct for the original assessment moment and **do not apply to the repository's present state**. [PR #1](https://github.com/asambataiden/enterprise-payment-platform/pull/1) and [PR #2](https://github.com/asambataiden/enterprise-payment-platform/pull/2) were subsequently merged; the final [v0.1.0 release](https://github.com/asambataiden/enterprise-payment-platform/releases/tag/v0.1.0) has passing [Java CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42919187324) and [Security CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42919187035). Historical evidence and decision text below are deliberately preserved.
+
 # PR #1 — Security and merge-readiness assessment (Milestone 05.6)
 
 - **Assessment date:** 2026-11-08
