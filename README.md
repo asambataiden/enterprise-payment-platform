@@ -175,6 +175,19 @@ transaction-commit throughput or an application service-level objective.
 See [Chapter 46](docs/learning/46-statistical-postgresql-read-write-benchmark.md).
 The script has not yet been executed or benchmark-verified.
 
+## Connection pool saturation and recovery
+
+An isolated PostgreSQL Testcontainers regression now checks bounded
+connection acquisition when both slots of a two-connection HikariCP
+pool are busy, then verifies successful recovery after release.
+Authenticated HTTP tests also verify that JDBC and transaction
+connection-acquisition failures return sanitized `503 SERVICE_UNAVAILABLE`
+responses rather than leaking infrastructure diagnostics. The
+`retryable` response hint never supersedes payment idempotency rules.
+See [Chapter 48](docs/learning/48-hikari-pool-saturation-and-recovery.md).
+This is a deterministic availability test, **not** an HTTP load benchmark
+or production pool-capacity estimate.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
