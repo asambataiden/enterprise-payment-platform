@@ -76,6 +76,13 @@ public class PaymentController {
             @RequestParam(required = false) String merchantReference,
             @RequestParam(required = false) String cursor,
             @AuthenticationPrincipal Jwt jwt) {
+        if (limit < 1 || limit > 100
+                || (merchantReference != null
+                        && (merchantReference.isBlank() || merchantReference.length() > 100))
+                || (cursor != null && (cursor.isBlank() || cursor.length() > 256
+                        || !cursor.matches("[A-Za-z0-9_-]+")))) {
+            throw new ResponseStatusException(BAD_REQUEST, "Invalid payment search parameters");
+        }
         String validStatus = null;
         if (status != null) {
             try {
