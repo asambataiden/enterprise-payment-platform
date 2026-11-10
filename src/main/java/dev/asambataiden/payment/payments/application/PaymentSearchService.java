@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -119,7 +120,7 @@ public class PaymentSearchService {
                 throw new IllegalArgumentException("Invalid pagination cursor");
             }
             return new Position(createdAt, id);
-        } catch (IllegalArgumentException error) {
+        } catch (IllegalArgumentException | DateTimeParseException error) {
             throw new IllegalArgumentException("Invalid pagination cursor", error);
         }
     }
