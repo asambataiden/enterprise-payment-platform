@@ -98,6 +98,15 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — Verified JVM evidence and phase-aware interpretation
+
+[Chapter 72: successfully captured forked JVM evidence and distinguished startup from measured events](72-verified-jvm-diagnostics-and-phase-aware-analysis.md)
+records the 6,000-request local success at tested SHA `701dc6e4`,
+validated test PID and all four evidence files, and the absence
+of >50-ms requests in that run. The enhanced analyzer reports
+startup, measured-stage and post-stage JVM log-line counts
+without interpreting a partial printed excerpt as complete evidence.
+
 ## Milestone 22 — Identify the test JVM, not Maven
 
 [Chapter 71: per-process GC/safepoint evidence recovery from zero](71-surefire-jvm-pid-logging-recovery-from-zero.md)
