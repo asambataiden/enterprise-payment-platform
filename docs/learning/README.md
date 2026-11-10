@@ -45,6 +45,15 @@ regression test, separated GET/POST per-tenant metrics and the
 exact opt-in local experiment. Previous results must not be
 interpreted as measuring per-tenant write fairness.
 
+## Milestone 20 — Verified repeated-trial evidence
+
+[Chapter 64: two independent 100-RPS trials, actual results](64-repeated-100rps-tenant-performance-verified-results.md)
+records the developer's verified **12,000 successful measured requests**,
+read/write latency by merchant and ten-second window, JVM and
+Hikari/PostgreSQL observations, limitations, CI evidence, and
+beginner/interview explanations. Tested implementation SHA:
+`b7362f1025af49f6789d83d75c93c58ceeb76486`.
+
 ## Milestone 20 — Repeatability and tenant completion rates
 
 [Chapter 63: two independent longer tenant-fairness trials](63-repeated-tenant-fairness-lab-from-zero.md)
