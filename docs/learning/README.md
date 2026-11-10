@@ -1,3 +1,5 @@
+> **HISTORICAL LEARNING ARCHIVE.** The numbered chapters preserve iterative hypotheses, failed attempts, fixes and time-scoped experimental evidence; some “not yet implemented” and “pending verification” statements were true only at their original milestone. For a current overview use the [docs hub](../README.md), [v0.1.0 portfolio case study](../portfolio/technical-case-study.md) and [release](https://github.com/asambataiden/enterprise-payment-platform/releases/tag/v0.1.0). New and revised *detailed reconstruction tutorials* are intended for a separately managed private repository; the existing public Git history remains public.
+
 # Enterprise Payment Platform — Learning and Interview Handbook
 
 > **Start here.** Learn the architecture from the original problem to the current Kafka outbox integration. This is an **educational simulated payments platform**, not a regulated payments implementation. Read the **implemented / planned** distinction on every page.
