@@ -429,3 +429,36 @@ before merge.
 was run locally with Maven `-q` and returned to the shell without
 an error; this provides a successful exit indication, but not an
 independent test-count report.
+
+
+### November 10, 2026 — Full simulated refund reversal locally verified
+
+Developer executed a targeted Maven verification after pulling the
+implementation and tests to `feat/payment-ledger`:
+
+```bash
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" \
+  -Dtest=PaymentStateMachineTest \
+  -Dit.test=SimulatedPaymentTransitionServiceIT verify
+```
+
+**Observed result:** Surefire `PaymentStateMachineTest` **6 passed**, and
+Failsafe `SimulatedPaymentTransitionServiceIT` **9 passed**; **0 failures,
+0 errors, 0 skips**. PostgreSQL 17.11 Testcontainers started; Flyway
+successfully validated/applied exactly eight migrations. Maven reported
+`BUILD SUCCESS` at **2026-11-10 05:12:20 +01:00**.
+
+**Verification boundary:** This was a targeted test run, not a fresh
+full-suite `clean verify`. The new refund-reversal, refund replay and
+ledger-conflict rollback integration cases passed as part of the nine
+transition-service IT cases.
+
+**Performance observation:** Failsafe reported 78.72 seconds for the
+transition-service IT class, including an approximately 68.45-second
+Spring context startup; total Maven runtime 1:27. The delayed startup
+was not diagnosed and should not be attributed to Kafka, PostgreSQL
+or a specific filesystem without measurement.
+
+**Architecture gate:** GO on the simulated full-refund compensation
+for continued development. Partial/multiple refunds, external transfer
+and settlement remain explicitly out of scope.
