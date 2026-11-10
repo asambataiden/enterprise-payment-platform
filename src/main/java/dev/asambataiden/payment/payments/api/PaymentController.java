@@ -1,6 +1,8 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
+import dev.asambataiden.payment.payments.domain.PaymentState;
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
 import dev.asambataiden.payment.payments.api.dto.PaymentResponse;
 import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
@@ -26,8 +28,12 @@ import org.springframework.http.HttpStatus;
 @Validated
 public class PaymentController {
     private final PaymentService service;
+    private final SimulatedPaymentTransitionService transitions;
 
-    public PaymentController(PaymentService service) { this.service = service; }
+    public PaymentController(PaymentService service, SimulatedPaymentTransitionService transitions) {
+        this.service = service;
+        this.transitions = transitions;
+    }
 
     @Operation(summary = "Create or safely retry a simulated payment",
             description = "Merchant ownership comes from a validated JWT; the idempotency key is tenant-scoped.")
@@ -56,6 +62,34 @@ public class PaymentController {
     @GetMapping("/{id}")
     public PaymentResponse get(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return PaymentResponse.from(service.get(merchantId(jwt), id));
+    }
+
+    /**
+     * Explicit learning-only lifecycle control. Requires an independent
+     * payments:simulate authority; ordinary write authority is insufficient.
+     * Event-Id identifies one logical command and must be reused on retries.
+     */
+    @Operation(summary = "Advance a simulated payment lifecycle (not real funds movement)")
+    @ApiResponse(responseCode = "200", description = "Updated or safely retried simulated payment")
+    @ApiResponse(responseCode = "400", description = "Invalid event ID or target state")
+    @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token")
+    @ApiResponse(responseCode = "403", description = "Missing simulation scope or merchant identity")
+    @ApiResponse(responseCode = "404", description = "Payment not owned by authenticated merchant")
+    @ApiResponse(responseCode = "409", description = "Invalid state transition or reused event ID")
+    @PostMapping("/{id}/simulated-transitions")
+    public PaymentResponse simulateTransition(
+            @PathVariable UUID id,
+            @RequestHeader("Event-Id") UUID eventId,
+            @Valid @RequestBody SimulatedTransitionRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        String merchant = merchantId(jwt);
+        try {
+            transitions.advance(merchant, id, eventId, request.targetState());
+        } catch (IllegalStateException invalidTransition) {
+            // Do not expose internal state or database diagnostic messages.
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Simulated payment transition rejected");
+        }
+        return PaymentResponse.from(service.get(merchant, id));
     }
 
     private static String merchantId(Jwt jwt) {
