@@ -1,0 +1,53 @@
+# Example alert policies for an explicitly enabled, scraped payment Kafka consumer.
+# These are NOT auto-loaded by the application or Prometheus.
+# Deploy only after the actual metric names, TLS/JWT scrape authorization,
+# target labels, and service SLO thresholds have been reviewed.
+groups:
+  - name: enterprise-payment-kafka-consumer
+    rules:
+      - alert: PaymentKafkaListenerStopped
+        expr: payment_kafka_consumer_lifecycle_state == 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Payment Kafka listener has stopped"
+          description: "Investigate consumer failure observations and broker offsets before manual recovery. Never skip a poison record automatically."
+
+      - alert: PaymentKafkaListenerMissing
+        expr: payment_kafka_consumer_lifecycle_state == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Enabled payment Kafka listener is missing from the Spring registry"
+          description: "Verify listener registration, deployment configuration and startup failures."
+
+      - alert: PaymentKafkaLagObservationUnavailable
+        expr: payment_kafka_consumer_lag_available == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Payment Kafka consumer lag cannot be observed reliably"
+          description: "Check Kafka Admin read ACLs, connectivity, committed offsets and monitoring freshness. Unknown is not zero."
+
+      - alert: PaymentKafkaLagSamplingStale
+        expr: payment_kafka_consumer_lag_sample_age_seconds > 120
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Payment Kafka lag sampling is stale"
+          description: "The sampler has not completed recently. Inspect scheduler, broker and application health."
+
+      # Example backlog threshold ONLY; tune based on measured service SLOs.
+      # Availability is required to avoid treating unknown (-1) as healthy.
+      - alert: PaymentKafkaConsumerBacklog
+        expr: (payment_kafka_consumer_lag_records > 1000) and (payment_kafka_consumer_lag_available == 1)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Payment Kafka consumer lag is sustained"
+          description: "Investigate throughput, group assignment, processing errors and broker health; no automatic offset mutation."

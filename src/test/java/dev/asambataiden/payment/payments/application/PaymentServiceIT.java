@@ -39,10 +39,131 @@ class PaymentServiceIT {
     PaymentService service;
 
     @Autowired
+    PaymentSearchService search;
+
+    @Autowired
     PaymentRepository repository;
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Test
+    @org.springframework.transaction.annotation.Transactional
+    void merchantPaginationIndexIsAvailableToPostgresQueryPlanner() {
+        String ddl = jdbc.queryForObject("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'payments'
+                  AND indexname = 'idx_payments_merchant_created_id'
+                """, String.class);
+        assertNotNull(ddl, "Flyway V9 must create the merchant-keyset index");
+        assertTrue(ddl.contains("merchant_id"));
+        assertTrue(ddl.contains("created_at DESC"));
+        assertTrue(ddl.contains("id DESC"));
+
+        // For tiny Testcontainers tables PostgreSQL legitimately prefers a
+        // sequential scan. Disable it *in this test transaction only* to
+        // verify the intended ordered index access path remains possible.
+        // This is an access-path assertion, NOT a performance benchmark.
+        jdbc.execute("SET LOCAL enable_seqscan = off");
+        String plan = String.join("\\n", jdbc.query("""
+                EXPLAIN SELECT id, amount, currency, merchant_reference, status, created_at
+                FROM payments WHERE merchant_id = ?
+                ORDER BY created_at DESC, id DESC LIMIT 10
+                """, (rs, row) -> rs.getString(1), "merchant-plan-test"));
+        assertTrue(plan.contains("idx_payments_merchant_created_id"), plan);
+
+        String historyDdl = jdbc.queryForObject("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'payment_outbox'
+                  AND indexname = 'idx_outbox_merchant_payment_created_id'
+                """, String.class);
+        assertNotNull(historyDdl, "Flyway V9 must create the merchant-payment history index");
+        assertTrue(historyDdl.contains("merchant_id"));
+        assertTrue(historyDdl.contains("payment_id"));
+        assertTrue(historyDdl.contains("created_at DESC"));
+        assertTrue(historyDdl.contains("id DESC"));
+        String historyPlan = String.join("\\n", jdbc.query("""
+                EXPLAIN SELECT id, target_state, created_at, dispatched_at
+                FROM payment_outbox
+                WHERE merchant_id = ? AND payment_id = ?
+                ORDER BY created_at DESC, id DESC LIMIT 101
+                """, (rs, row) -> rs.getString(1),
+                "merchant-plan-test", UUID.randomUUID()));
+        assertTrue(historyPlan.contains("idx_outbox_merchant_payment_created_id"), historyPlan);
+    }
+
+    @Test
+    void searchUsesKeysetPaginationAndNeverLeaksOtherMerchantsPayments() {
+        String merchant = "merchant-search-" + UUID.randomUUID();
+        String otherMerchant = "merchant-other-" + UUID.randomUUID();
+        String ref = "search-ref-" + UUID.randomUUID();
+        var first = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", ref));
+        var second = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("11.00"), "EUR", ref));
+        var third = service.create(merchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("12.00"), "EUR", ref));
+        var foreign = service.create(otherMerchant, UUID.randomUUID().toString(),
+                new CreatePaymentCommand(new BigDecimal("99.00"), "EUR", ref));
+
+        var page1 = search.search(merchant, "RECEIVED", ref, 2, null);
+        assertEquals(2, page1.payments().size());
+        assertTrue(page1.hasMore());
+        assertNotNull(page1.nextCursor());
+        var page2 = search.search(merchant, "RECEIVED", ref, 2, page1.nextCursor());
+        assertEquals(1, page2.payments().size());
+        assertFalse(page2.hasMore());
+        assertNull(page2.nextCursor());
+
+        var ids = new java.util.HashSet<UUID>();
+        page1.payments().forEach(p -> assertTrue(ids.add(p.id())));
+        page2.payments().forEach(p -> assertTrue(ids.add(p.id())));
+        assertEquals(java.util.Set.of(first.id(), second.id(), third.id()), ids);
+        assertFalse(ids.contains(foreign.id()));
+        assertEquals(1, search.search(otherMerchant, "RECEIVED", ref, 10, null).payments().size());
+        assertTrue(search.search(merchant, "FAILED", ref, 10, null).payments().isEmpty());
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, null, ref, 101, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, null, ref, 10, "invalid%%%"));
+    }
+
+    @Test
+    void continuationCursorRejectsChangedFiltersAndOtherMerchants() {
+        String merchant = "cursor-owner-" + UUID.randomUUID();
+        String other = "cursor-foreign-" + UUID.randomUUID();
+        String reference = "order-" + UUID.randomUUID();
+        for (int n = 0; n < 3; n++) {
+            service.create(merchant, UUID.randomUUID().toString(),
+                    new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", reference));
+        }
+        var first = search.search(merchant, "RECEIVED", reference, 1, null);
+        String cursor = first.nextCursor();
+        assertNotNull(cursor);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "FAILED", reference, 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference + "-changed", 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(other, "RECEIVED", reference, 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, "a".repeat(300)));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, ""));
+        String raw = new String(java.util.Base64.getUrlDecoder().decode(cursor),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String[] components = raw.split("\\|", -1);
+        assertEquals(4, components.length);
+        components[1] = "not-a-timestamp";
+        String invalidTime = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                String.join("|", components).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, invalidTime));
+        assertEquals(1, search.search(merchant, "RECEIVED", reference, 1, cursor).payments().size());
+    }
 
     @Test
     void createsAndRetrievesPersistedPayment() {

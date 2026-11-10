@@ -1,0 +1,16 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    profiles: ["identity"]
+    command:
+      - start-dev
+      - --hostname=http://localhost:8180
+      - --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:?Required}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?Required}
+    ports:
+      - "127.0.0.1:8180:8080"
+    volumes:
+      - ./ops/demo/keycloak/payments-realm.json:/opt/keycloak/data/import/payments-realm.json:ro
+    mem_limit: 1g
