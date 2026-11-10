@@ -61,6 +61,16 @@ teaches the why, what, how, commands, measurements, limitations
 and interview defense. The runner is opt-in and its performance
 results cannot be claimed before the developer's local run.
 
+## Milestone 21 — Verified large-corpus results and incident investigation
+
+[Chapter 66: actual 6,000-request results and a transient tail-latency spike](66-large-corpus-results-and-latency-spike-investigation.md)
+records the successful 128-records-per-merchant test at
+`e3c2ef2b` and explains the **30–40s p95/p99 spike**.
+The [offline raw CSV analyzer](../../ops/benchmarks/http/analyze-raw-latency.py)
+validates all 6,000 rows and identifies slow request clusters
+without uploading test data or using network access. The
+incident's root cause remains **unverified**.
+
 ## Milestone 21 — Larger corpus and raw request-level evidence
 
 [Chapter 65: beginner tutorial for larger synthetic datasets and raw CSV timings](65-large-corpus-raw-latency-evidence-from-zero.md)
