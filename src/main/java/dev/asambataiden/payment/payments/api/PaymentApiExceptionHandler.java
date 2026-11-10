@@ -38,7 +38,10 @@ public class PaymentApiExceptionHandler {
 
     @ExceptionHandler(DataAccessResourceFailureException.class)
     ResponseEntity<ProblemDetail> databaseUnavailable(DataAccessResourceFailureException exception) {
-        log.error("Database resource failure; correlationId={}", MDC.get(CorrelationIdFilter.MDC_KEY), exception);
+        // Intentionally do not pass the Throwable or its message to the logger.
+        // JDBC driver exceptions may contain connection URLs or credentials.
+        log.error("API failure category=DATABASE_RESOURCE_UNAVAILABLE code={} correlationId={}",
+                PaymentApiErrorCode.SERVICE_UNAVAILABLE.value(), MDC.get(CorrelationIdFilter.MDC_KEY));
         var response = domainError(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable",
                 "A required service is temporarily unavailable.", PaymentApiErrorCode.SERVICE_UNAVAILABLE);
         response.getBody().setProperty("retryable", true);
@@ -47,7 +50,11 @@ public class PaymentApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> unexpected(Exception exception) {
-        log.error("Unhandled API exception; correlationId={}", MDC.get(CorrelationIdFilter.MDC_KEY), exception);
+        // A Throwable's message, cause chain and stack trace can contain secrets.
+        // Keep stable diagnostic categories here; use controlled incident tooling
+        // for any approved access to detailed diagnostics.
+        log.error("API failure category=UNEXPECTED code={} correlationId={}",
+                PaymentApiErrorCode.INTERNAL_ERROR.value(), MDC.get(CorrelationIdFilter.MDC_KEY));
         return domainError(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
                 "An unexpected error occurred.", PaymentApiErrorCode.INTERNAL_ERROR);
     }
