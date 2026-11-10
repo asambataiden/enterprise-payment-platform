@@ -486,7 +486,7 @@ class MixedHttpWorkloadLab {
         assertNotNull(configured, "Independent evidence output prefix required");
         Path directory = Path.of("target", "http-load-lab").toAbsolutePath().normalize();
         Path prefix = Path.of(configured).toAbsolutePath().normalize();
-        assertTrue(prefix.startsWith(directory), "Output prefix must be under target/http-load-lab");
+        assertEquals(directory, prefix.getParent(), "Output prefix must be directly in target/http-load-lab");
         Files.createDirectories(directory);
         Path childCsv = Path.of(prefix + "-independent-client.csv");
         Path serverCsv = Path.of(prefix + "-independent-server.csv");
