@@ -47,3 +47,20 @@ Never commit passwords, tokens, client secrets, credentials, private keys, real 
 For each docs PR: link the relevant implementation/tests, update the entry point, run relative-link checking and CI, and confirm no misleading claim of a financial/compliance or production guarantee. Changes to code, operational behavior or architecture should update matching documentation in the **same PR**.
 
 **Migration policy:** Do not bulk-move `docs/learning` or old ADRs in a docs-only cleanup. Those paths are deeply cross-linked, and the public history is immutable. Deprecate inaccurate *current-state* entry points and migrate historical chapters only with link validation and separate review.
+
+## Automated link validation
+
+The standard-library-only checker reports broken or unsafe relative links without touching source files or accessing the network.
+
+```bash
+# Fast, enforced canonical-doc check (the CI default)
+python3 ops/docs/check-markdown-links.py
+
+# Audit all historical Markdown documents before a planned migration
+python3 ops/docs/check-markdown-links.py --all
+
+# Validate selected files during a focused revision
+python3 ops/docs/check-markdown-links.py docs/architecture/README.md docs/security/README.md
+```
+
+`Documentation Quality` CI enforces canonical-entry-point links; the full legacy `--all` run is deliberately not a blocking gate until historical link debt is separately triaged. Markdown anchor fragment validity and remote HTTP link availability are outside the current checker.
