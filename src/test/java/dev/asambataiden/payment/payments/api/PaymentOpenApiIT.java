@@ -44,6 +44,7 @@ class PaymentOpenApiIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.version").value("v1"))
                 .andExpect(jsonPath("$.paths['/api/v1/payments'].post").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/payments'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/payments/{id}'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/payments/{id}/history'].get").exists())
                 .andExpect(jsonPath("$.components.securitySchemes.bearerAuth.scheme").value("bearer"))
