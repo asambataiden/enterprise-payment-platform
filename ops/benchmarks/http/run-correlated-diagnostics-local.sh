@@ -14,10 +14,14 @@ log="$out/$id-correlated-maven.log"
 csv="$out/$id-correlated-requests.csv"
 gc="$out/$id-correlated-jvm.log"
 analysis="$out/$id-correlated-analysis.log"
-printf 'Milestone 22: isolated localhost GC/safepoint and client timing diagnostics\nGit SHA: %s\nUTC: %s\n' \
+printf 'Milestone 23: isolated localhost client/server/GC timing diagnostics\nGit SHA: %s\nUTC: %s\n' \
   "$(git -C "$root" rev-parse HEAD)" "$(date -u +%FT%TZ)"
 printf 'HTTP rate=100 RPS duration=60s merchants=4 records_per_merchant=128\n'
 printf 'Maven log: %s\nCSV: %s\nGC/safepoint log: %s\n' "$log" "$csv" "$gc"
+
+# Validate the evidence parser and both legacy/new CSV contracts before
+# running the bounded workload. These Python unit tests use no HTTP traffic.
+python3 "$root/ops/benchmarks/http/test_analyze_correlated_diagnostics.py"
 
 # JAVA_TOOL_OPTIONS is inherited by Maven's process AND its forked
 # Surefire test JVM. The %p placeholder produces separate files per PID.
