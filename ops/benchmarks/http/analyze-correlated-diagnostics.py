@@ -82,7 +82,7 @@ def analyze(csv_file, gc_file, mvn_file):
     # message. Count these rather than all three corresponding log lines.
     completed_pauses = []
     for offset, tags, message in measured_events:
-        match = GC_COMPLETION.match(message) if tags == "gc" else None
+        match = GC_COMPLETION.match(message.strip()) if tags.strip() == "gc" else None
         if match:
             completed_pauses.append((offset, int(match.group(1)), float(match.group(2))))
     if completed_pauses:
