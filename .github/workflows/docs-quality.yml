@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check canonical Markdown local links
         run: python3 ops/docs/check-markdown-links.py
+      - name: Report ADR identifier and inbound-link debt (non-blocking)
+        run: python3 ops/docs/audit-adrs.py
       - name: Report historical Markdown link debt (non-blocking)
         shell: bash
         run: |
