@@ -1,5 +1,6 @@
 package dev.asambataiden.payment.payments.domain;
 
+import dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,7 +25,7 @@ public final class PaymentStateMachine {
             throw new IllegalArgumentException("Payment states must not be null");
         }
         if (!ALLOWED.get(current).contains(target)) {
-            throw new IllegalStateException("Invalid simulated payment transition: " + current + " -> " + target);
+            throw new PaymentTransitionConflictException("Invalid simulated payment transition: " + current + " -> " + target);
         }
         return target;
     }
