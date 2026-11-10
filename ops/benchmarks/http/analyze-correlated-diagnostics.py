@@ -21,6 +21,22 @@ PAUSE = re.compile(r"\bPause\b|Safepoint", re.IGNORECASE)
 GC_COMPLETION = re.compile(r"^GC\((\d+)\) Pause .+? ([0-9]+(?:\.[0-9]+)?)ms$")
 
 
+def gc_completion(event):
+    """Extract one completed GC pause; reject start/safepoint messages.
+
+    Unified JVM logging tags can be padded with spaces; normalize before
+    checking the exact 'gc' completion tag. Multiple log lines can belong
+    to one collection, so only completion messages are counted.
+    """
+    offset, tags, message = event
+    if tags.strip() != "gc":
+        return None
+    match = GC_COMPLETION.match(message.strip())
+    if not match:
+        return None
+    return offset, int(match.group(1)), float(match.group(2))
+
+
 def analyze(csv_file, gc_file, mvn_file):
     maven_text = Path(mvn_file).read_text(encoding="utf-8", errors="replace")
     anchors = [int(x) for x in UPTIME.findall(maven_text)]
@@ -81,10 +97,10 @@ def analyze(csv_file, gc_file, mvn_file):
     # GC-completion messages have a pause duration at the end of the
     # message. Count these rather than all three corresponding log lines.
     completed_pauses = []
-    for offset, tags, message in measured_events:
-        match = GC_COMPLETION.match(message.strip()) if tags.strip() == "gc" else None
-        if match:
-            completed_pauses.append((offset, int(match.group(1)), float(match.group(2))))
+    for event in measured_events:
+        completion = gc_completion(event)
+        if completion is not None:
+            completed_pauses.append(completion)
     if completed_pauses:
         durations = [pause[2] for pause in completed_pauses]
         print(f"MEASURED_GC_PAUSE_SUMMARY count={len(completed_pauses)}"
