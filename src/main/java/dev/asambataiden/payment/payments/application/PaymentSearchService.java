@@ -38,27 +38,33 @@ public class PaymentSearchService {
         // even when payment statuses change. All predicates are bound values.
         var sql = new StringBuilder("""
                 SELECT id, amount, currency, merchant_reference, status, created_at
-                FROM payments
-                WHERE merchant_id = ?
-                  AND (? IS NULL OR status = ?)
-                  AND (? IS NULL OR merchant_reference = ?)
+                FROM payments WHERE merchant_id = ?
                 """);
+        var args = new java.util.ArrayList<Object>();
+        args.add(merchantId);
+        if (status != null) {
+            sql.append(" AND status = ?");
+            args.add(status);
+        }
+        if (merchantReference != null) {
+            sql.append(" AND merchant_reference = ?");
+            args.add(merchantReference);
+        }
         if (after != null) {
             sql.append(" AND (created_at, id) < (?, ?)");
+            args.add(java.sql.Timestamp.from(after.createdAt()));
+            args.add(after.id());
         }
         sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");
+        args.add(limit + 1);
 
-        Object[] args = after == null
-                ? new Object[]{merchantId, status, status, merchantReference, merchantReference, limit + 1}
-                : new Object[]{merchantId, status, status, merchantReference, merchantReference,
-                        java.sql.Timestamp.from(after.createdAt()), after.id(), limit + 1};
         List<PaymentResult> fetched = jdbc.query(sql.toString(), (rs, row) -> new PaymentResult(
                 rs.getObject("id", UUID.class),
                 rs.getBigDecimal("amount"),
                 rs.getString("currency"),
                 rs.getString("merchant_reference"),
                 rs.getString("status"),
-                rs.getTimestamp("created_at").toInstant()), args);
+                rs.getTimestamp("created_at").toInstant()), args.toArray());
 
         boolean hasMore = fetched.size() > limit;
         List<PaymentResult> items = List.copyOf(fetched.subList(0, Math.min(limit, fetched.size())));
