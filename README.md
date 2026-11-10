@@ -49,8 +49,20 @@ The issuer above is an example; configure the real issuer, audience and token-is
 | --- | --- | --- |
 | `POST` | `/api/v1/payments` | Valid JWT, `payments:write`, trusted merchant claim, `Idempotency-Key` |
 | `GET` | `/api/v1/payments/{id}` | Valid JWT, `payments:read`, owning merchant |
+| `POST` | `/api/v1/payments/{id}/simulated-transitions` | Valid JWT, **`payments:simulate`**, owning merchant, `Event-Id` UUID |
 | `GET` | `/actuator/health` | Public |
 | Other routes | — | Denied by default |
+
+The simulation-only endpoint accepts a validated JSON body such as
+`{"targetState":"AUTHORIZED"}`, a merchant-owned payment UUID and an
+`Event-Id` UUID. Reuse the **same event UUID** for retries of the same
+logical state change; reusing it for another payment or target state is
+rejected. The dedicated `payments:simulate` permission is intentionally
+separate from ordinary `payments:write`. Invalid transitions return
+HTTP 409 with `PAYMENT_TRANSITION_CONFLICT`; other merchants' payment
+IDs return 404. This route exists for an explicitly authorized training
+environment only. It does **not** integrate a payment processor or cause
+external authorization, capture, refund or settlement.
 
 Example of a request **after** obtaining a legitimate access token from the configured identity provider:
 
