@@ -51,9 +51,14 @@ is stable after creation; the UUID is a unique tie-breaker. The query
 requests `limit + 1` to determine `hasMore` without an expensive
 total row count.
 
-The opaque URL-safe Base64 cursor is **not encrypted, authenticated or
-an authorization grant**. Do not put private data into it. Every query
-still enforces `merchant_id = ?`. The caller should preserve the
+The URL-safe Base64 cursor is versioned (`v1`) and includes a SHA-256
+fingerprint of the validated merchant identity and exact filter set.
+Changing merchant or filters rejects continuation with HTTP 400.
+This fingerprint is **not a MAC or cryptographic authentication**:
+the cursor can be decoded or modified by a client and is not an
+authorization grant. Every database query still enforces
+`merchant_id = ?`, regardless of cursor contents. Do not put secrets
+or private data into cursor payloads. The caller must preserve the
 original filters while navigating pages. Statuses can change between
 pages, so filtered results are **not** a snapshot-isolated audit
 export. For stable reporting use a dedicated snapshot/reporting
@@ -63,7 +68,7 @@ strategy.
 
 - Read scope required; no cross-tenant search or merchant selector.
 - Filters are parameterized, not concatenated SQL values.
-- Empty, malformed or overly large parameters are rejected.
+- Empty, malformed or overly large parameters are rejected. Cursor replay with mismatched filters or tenant is rejected.
 - No total count is returned or calculated.
 - Index review is required with realistic data volumes. Candidate
   access path: `(merchant_id, created_at DESC, id DESC)`; evaluate
@@ -79,8 +84,8 @@ strategy.
 - Web slice: read-scope access, filters and response shape, denied
   unauthenticated or ordinary write-scope access, bad status.
 - PostgreSQL IT: page forward through three owned payments, confirm
-  no duplicates, exclude another merchant, check exact filters and
-  malformed cursor/limit.
+  no duplicates, exclude another merchant, check exact filters,
+  cross-filter/tenant cursor replay and malformed cursor/limit.
 - OpenAPI IT: new GET on `/api/v1/payments` is present alongside POST.
 - Gate: `mvn -B --no-transfer-progress clean verify` plus Java and
   Security CI; the new increment is **unverified until tests pass**.
