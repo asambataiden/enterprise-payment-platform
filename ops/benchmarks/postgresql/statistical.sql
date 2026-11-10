@@ -222,7 +222,7 @@ UNION ALL SELECT 'write plain', count(*) FROM lab_write_plain
 UNION ALL SELECT 'write indexed', count(*) FROM lab_write_indexed;
 
 -- Fail the lab if a variant was inadvertently omitted or the fixture size changed.
-DO $
+DO $$
 BEGIN
     IF (SELECT count(*) FROM lab_payments_plain) <> 100000
        OR (SELECT count(*) FROM lab_payments_indexed) <> 100000
@@ -234,6 +234,6 @@ BEGIN
        OR (SELECT count(*) FROM lab_write_indexed) <> 12000 THEN
         RAISE EXCEPTION 'Synthetic fixture or measurement sample count mismatch';
     END IF;
-END $;
+END $$;
 
 \echo 'NOTE: p95 is a sample percentile, not a production latency SLO.'
