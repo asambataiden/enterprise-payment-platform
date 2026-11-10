@@ -36,6 +36,9 @@ class SimulatedPaymentTransitionServiceIT {
     PaymentService payments;
 
     @Autowired
+    PaymentHistoryService history;
+
+    @Autowired
     JdbcTemplate jdbc;
 
     private UUID create(String merchant) {
@@ -49,6 +52,47 @@ class SimulatedPaymentTransitionServiceIT {
 
     private long count(String sql, UUID payment) {
         return jdbc.queryForObject(sql, Long.class, payment);
+    }
+
+    @Test
+    void historyIsMerchantScopedAndLinksCaptureAndRefundJournals() {
+        String owner = "merchant-history-" + UUID.randomUUID();
+        UUID payment = create(owner);
+        UUID authorizeEvent = UUID.randomUUID();
+        UUID captureEvent = UUID.randomUUID();
+        UUID refundEvent = UUID.randomUUID();
+
+        var received = history.history(owner, payment);
+        assertEquals("RECEIVED", received.payment().status());
+        assertTrue(received.events().isEmpty());
+
+        transitions.advance(owner, payment, authorizeEvent, PaymentState.AUTHORIZED);
+        transitions.advance(owner, payment, captureEvent, PaymentState.CAPTURED);
+        transitions.advance(owner, payment, refundEvent, PaymentState.REFUNDED);
+
+        var result = history.history(owner, payment);
+        assertEquals("REFUNDED", result.payment().status());
+        assertFalse(result.hasMore());
+        assertEquals(3, result.events().size());
+        assertEquals(java.util.Set.of(authorizeEvent, captureEvent, refundEvent),
+                result.events().stream().map(PaymentHistoryService.HistoryEvent::eventId)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(2, result.events().stream().filter(e -> e.ledgerEntryId() != null).count());
+        assertNull(result.events().stream()
+                .filter(e -> e.eventId().equals(authorizeEvent)).findFirst().orElseThrow().ledgerEntryId());
+        for (UUID eventId : java.util.List.of(captureEvent, refundEvent)) {
+            UUID ledgerId = result.events().stream()
+                    .filter(e -> e.eventId().equals(eventId)).findFirst().orElseThrow().ledgerEntryId();
+            assertNotNull(ledgerId);
+            assertEquals(1L, jdbc.queryForObject("""
+                    SELECT COUNT(*) FROM ledger_entries
+                    WHERE id = ? AND merchant_id = ? AND payment_id = ? AND event_id = ?
+                    """, Long.class, ledgerId, owner, payment, eventId));
+        }
+
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class,
+                () -> history.history("another-" + owner, payment));
+        assertEquals(3, history.history(owner, payment).events().size());
     }
 
     @Test
