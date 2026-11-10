@@ -237,6 +237,25 @@ The ladder is **not** part of ordinary Java CI and has no measured
 results yet. See [Chapter 53](docs/learning/53-controlled-http-rate-ladder.md).
 These brief local stages cannot establish production capacity.
 
+## Opt-in multi-tenant repeatability and JVM telemetry lab
+
+After the initial [25/50/100 RPS baseline](docs/learning/54-http-rate-ladder-results-and-decision.md),
+the follow-up benchmark replaces the single hot read target with
+**4 synthetic merchants and 8 seeded payment records each**, using a
+70/10/10/10 tenant skew. It records sampled Hikari occupancy,
+PostgreSQL active waits, JVM CPU time/GC/heap/thread readings, request
+latency and dispatcher lag.
+
+```bash
+bash ops/benchmarks/http/run-repeated-rate-ladder.sh
+```
+
+This opt-in experiment runs 25/50/100 followed by 100/50/25 RPS in
+independent disposable environments and stops on the first failing
+stage. Read [Chapter 55](docs/learning/55-multi-tenant-repeatability-performance-lab.md).
+It is not included in Java CI and **no measurement is claimed before
+the local run**.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
