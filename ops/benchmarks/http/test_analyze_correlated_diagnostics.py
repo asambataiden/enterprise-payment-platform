@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Regression tests for the offline JVM log parser; no Docker/network required."""
 import importlib.util
+import contextlib
+import csv
+import io
+import tempfile
 from pathlib import Path
 import unittest
 
@@ -48,6 +52,77 @@ class GcCompletionParsingTest(unittest.TestCase):
         self.assertAlmostEqual(38.498, sum(x[2] for x in completed), places=3)
         self.assertEqual(2.502, min(x[2] for x in completed))
         self.assertEqual(3.870, max(x[2] for x in completed))
+
+
+class ClientServerEvidenceTest(unittest.TestCase):
+    def _fixture(self, directory, server):
+        root = Path(directory)
+        csv_path = root / "synthetic.csv"
+        jvm_path = root / "synthetic-jvm.log"
+        maven_path = root / "synthetic-maven.log"
+        header = MODULE.HEADER + (MODULE.SERVER_COLUMNS if server else ())
+        merchant_get = [0] * 3360 + [1] * 480 + [2] * 480 + [3] * 480
+        merchant_post = [0] * 840 + [1] * 120 + [2] * 120 + [3] * 120
+        with csv_path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(header)
+            gi = wi = 0
+            for n in range(1, 6001):
+                write = n % 5 == 0
+                merchant = merchant_post[wi] if write else merchant_get[gi]
+                if write:
+                    wi += 1
+                else:
+                    gi += 1
+                duration = 5 if write else 4
+                start = n * 10
+                row = [n, merchant, "POST" if write else "GET",
+                       201 if write else 200, duration,
+                       ((n - 1) // 1000) * 10, start, start + duration]
+                if server:
+                    row.extend([start + 1, duration - 2])
+                writer.writerow(row)
+        jvm_path.write_text(
+            "[5010ms][info][gc           ] GC(1) Pause Young (Normal) "
+            "(G1 Evacuation Pause) 130M->60M(176M) 3.200ms\\n",
+            encoding="utf-8")
+        maven_path.write_text(
+            "MIXED_HTTP_LAB stage_start_jvm_uptime_ms=5000 "
+            "timing_basis=monotonic_client_offsets\\n", encoding="utf-8")
+        return csv_path, jvm_path, maven_path
+
+    def test_backward_compatible_client_only_csv(self):
+        with tempfile.TemporaryDirectory() as directory:
+            files = self._fixture(directory, server=False)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                MODULE.analyze(*files)
+            self.assertIn("CLIENT_VS_SERVER_TIMING unavailable", output.getvalue())
+            self.assertIn("VALIDATED rows=6000", output.getvalue())
+
+    def test_client_server_csv_is_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            files = self._fixture(directory, server=True)
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                MODULE.analyze(*files)
+            self.assertIn("operation=GET samples=4800", output.getvalue())
+            self.assertIn("operation=POST samples=1200", output.getvalue())
+            self.assertIn("negative_client_minus_server_residuals=0", output.getvalue())
+            self.assertIn("MEASURED_GC_PAUSE_SUMMARY count=1", output.getvalue())
+
+    def test_negative_server_duration_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            files = self._fixture(directory, server=True)
+            path = files[0]
+            rows = path.read_text(encoding="utf-8").splitlines()
+            pieces = rows[1].split(",")
+            pieces[-1] = "-2"
+            rows[1] = ",".join(pieces)
+            path.write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Invalid server timing"):
+                MODULE.analyze(*files)
+
 
 
 if __name__ == "__main__":
