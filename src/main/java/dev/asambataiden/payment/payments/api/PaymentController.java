@@ -7,6 +7,7 @@ import dev.asambataiden.payment.payments.application.PaymentHistoryService;
 import dev.asambataiden.payment.payments.api.dto.PaymentHistoryResponse;
 import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
 import dev.asambataiden.payment.payments.domain.PaymentState;
+import dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException;
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
 import dev.asambataiden.payment.payments.api.dto.PaymentResponse;
 import dev.asambataiden.payment.payments.api.dto.CreatePaymentRequest;
@@ -139,12 +140,7 @@ public class PaymentController {
             @Valid @RequestBody SimulatedTransitionRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         String merchant = merchantId(jwt);
-        try {
-            transitions.advance(merchant, id, eventId, request.targetState());
-        } catch (IllegalStateException invalidTransition) {
-            // Do not expose internal state or database diagnostic messages.
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Simulated payment transition rejected");
-        }
+        transitions.advance(merchant, id, eventId, request.targetState());
         return PaymentResponse.from(service.get(merchant, id));
     }
 
