@@ -1,0 +1,53 @@
+{
+  "version": "v1",
+  "scheme": "bearerAuth",
+  "operations": [
+    {
+      "path": "/api/v1/payments",
+      "method": "post",
+      "responses": [
+        "201",
+        "400",
+        "401",
+        "403",
+        "409"
+      ]
+    },
+    {
+      "path": "/api/v1/payments/{id}",
+      "method": "get",
+      "responses": [
+        "200",
+        "401",
+        "403",
+        "404"
+      ]
+    }
+  ],
+  "schemas": [
+    {
+      "name": "CreatePaymentRequest",
+      "properties": [
+        "amount",
+        "currency",
+        "merchantReference"
+      ],
+      "required": [
+        "amount",
+        "currency",
+        "merchantReference"
+      ]
+    },
+    {
+      "name": "PaymentResponse",
+      "properties": [
+        "id",
+        "amount",
+        "currency",
+        "merchantReference",
+        "status",
+        "createdAt"
+      ]
+    }
+  ]
+}

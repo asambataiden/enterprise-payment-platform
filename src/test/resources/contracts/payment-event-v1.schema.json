@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexo-raiden.com/schemas/payment-event-v1.schema.json",
+  "title": "Payment Event v1",
+  "description": "Simulated payment state transition event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "eventId",
+    "merchantId",
+    "paymentId",
+    "targetState"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "merchantId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "paymentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "targetState": {
+      "type": "string",
+      "enum": [
+        "AUTHORIZED",
+        "CAPTURED",
+        "FAILED",
+        "CANCELLED",
+        "REFUNDED"
+      ]
+    }
+  }
+}

@@ -1,0 +1,75 @@
+name: Java CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+      - 'feat/payment-reliability'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Java 25 | Maven verify | PostgreSQL Testcontainers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 25 and Maven dependency cache
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Verify build toolchain
+        run: |
+          java -version
+          mvn -version
+          docker version
+
+      - name: Verify unit, API, architecture and PostgreSQL integration tests
+        run: mvn --batch-mode --no-transfer-progress --errors clean verify
+
+      - name: Publish test reports on failure
+        if: failure()
+        run: |
+          find target/surefire-reports target/failsafe-reports \
+            -maxdepth 1 -type f -name '*.txt' -print -exec tail -n 80 {} \; \
+            2>/dev/null || true
+
+  benchmark-evidence:
+    name: Python | Benchmark evidence contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify Python toolchain
+        run: python3 --version
+
+      - name: Validate evidence governance
+        run: |
+          set -euo pipefail
+          python3 ops/benchmarks/http/test_evidence_manifest.py
+          python3 ops/benchmarks/http/test_independent_process.py
+          python3 ops/benchmarks/http/test_analyze_correlated_diagnostics.py

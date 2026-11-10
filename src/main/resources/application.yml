@@ -4,18 +4,84 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/paymentdb}
     username: ${DB_USER:payment_app}
-    password: ${DB_PASSWORD:localdev_only_change_me}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Fail boundedly when the pool is exhausted or the database is unreachable.
+      # Tune per environment using load tests and DB connection budgets.
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:2000}
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        max.block.ms: 5000
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+      auto-offset-reset: none
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
+payment:
+  # Simulation-only HTTP lifecycle endpoint is absent unless explicitly enabled.
+  # Never enable in an environment processing real funds.
+  simulation:
+    enabled: ${PAYMENT_SIMULATION_ENABLED:false}
+  messaging:
+    kafka:
+      enabled: ${PAYMENT_KAFKA_ENABLED:false}
+      topic: ${PAYMENT_KAFKA_TOPIC:payment.simulated.events.v1}
+      consumer:
+        enabled: ${PAYMENT_KAFKA_CONSUMER_ENABLED:false}
+        group-id: ${PAYMENT_KAFKA_CONSUMER_GROUP_ID:}
+        lag-monitor:
+          enabled: ${PAYMENT_KAFKA_LAG_MONITOR_ENABLED:false}
+          interval-ms: ${PAYMENT_KAFKA_LAG_MONITOR_INTERVAL_MS:30000}
+          maximum-age-ms: ${PAYMENT_KAFKA_LAG_MONITOR_MAXIMUM_AGE_MS:120000}
+      dispatch:
+        enabled: ${PAYMENT_KAFKA_DISPATCH_ENABLED:false}
+        interval-ms: ${PAYMENT_KAFKA_DISPATCH_INTERVAL_MS:1000}
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: ${PAYMENT_ACTUATOR_EXPOSE:health,info}
   endpoint:
     health:
       show-details: never
+
+# Use Spring Boot's built-in ECS JSON encoder (no extra logging libraries).
+# Set LOG_CONSOLE_FORMAT to a supported format (ecs, logstash or gelf)
+# for deployment-specific ingestion requirements.
+# Every MDC correlationId is included automatically in the JSON event.
+logging:
+  structured:
+    format:
+      console: ${LOG_CONSOLE_FORMAT:ecs}
+
+# OpenAPI is off unless explicitly enabled for a trusted development environment.
+springdoc:
+  paths-to-match: /api/v1/**
+  api-docs:
+    enabled: ${PAYMENT_OPENAPI_ENABLED:false}
+  swagger-ui:
+    enabled: false

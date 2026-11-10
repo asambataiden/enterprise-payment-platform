@@ -5,3 +5,11 @@ target/
 .env
 *.iml
 *.log
+
+# Ephemeral local Kafka mTLS identities, passwords and broker configuration.
+ops/monitoring/kafka-security-lab/generated/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
