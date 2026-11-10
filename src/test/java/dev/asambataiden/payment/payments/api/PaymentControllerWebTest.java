@@ -89,6 +89,24 @@ class PaymentControllerWebTest {
     }
 
     @Test
+    void invalidSearchBoundsAndCursorReturnClientSafeBadRequest() throws Exception {
+        for (String[] parameters : new String[][]{
+                {"limit", "0"},
+                {"limit", "101"},
+                {"cursor", "invalid%%%"},
+                {"merchantReference", ""}
+        }) {
+            mvc.perform(get("/api/v1/payments")
+                            .param(parameters[0], parameters[1])
+                            .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                    .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                            "SCOPE_payments:read"))))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("PAYMENT_BAD_REQUEST"));
+        }
+    }
+
+    @Test
     void readScopedMerchantCanViewPaymentHistory() throws Exception {
         UUID payment = UUID.randomUUID();
         UUID event = UUID.randomUUID();
