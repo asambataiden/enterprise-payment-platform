@@ -49,9 +49,19 @@ The issuer above is an example; configure the real issuer, audience and token-is
 | --- | --- | --- |
 | `POST` | `/api/v1/payments` | Valid JWT, `payments:write`, trusted merchant claim, `Idempotency-Key` |
 | `GET` | `/api/v1/payments/{id}` | Valid JWT, `payments:read`, owning merchant |
+| `GET` | `/api/v1/payments/{id}/history` | Valid JWT, `payments:read`, owning merchant; up to 100 newest committed simulation transitions |
 | `POST` | `/api/v1/payments/{id}/simulated-transitions` | Valid JWT, **`payments:simulate`**, owning merchant, `Event-Id` UUID |
 | `GET` | `/actuator/health` | Public |
 | Other routes | — | Denied by default |
+
+The history endpoint returns the current merchant-owned payment and a
+bounded list of committed simulated lifecycle events, ordered newest-first.
+Each event includes a UUID, target state, recording time, optional outbox
+dispatch time, and optional linked ledger journal ID (capture/refund).
+`hasMore=true` means the latest 100 events omit older history; this
+increment does **not** implement pagination of older entries. Dispatch
+timestamps do not guarantee downstream processing. These records do not
+establish a legally complete audit trail or real financial settlement.
 
 The simulation-only endpoint accepts a validated JSON body such as
 `{"targetState":"AUTHORIZED"}`, a merchant-owned payment UUID and an
