@@ -61,7 +61,7 @@ history and search. The training route lives in
 independent scope when the controller exists.
 
 Because the controller is not registered when disabled, an authorized
-request to its URL receives 404 from MVC. Its operation is also absent
+request to its URL receives an HTTP 404 with stable\n\`RESOURCE_NOT_FOUND\` Problem Details. Spring MVC may represent a\nmissing mapping as a missing static resource; the global exception handler\nexplicitly preserves a sanitized 404 instead of misclassifying it as\nHTTP 500. Its operation is also absent
 from the dynamically generated OpenAPI schema. This is a deployment-
 time feature boundary, not protection against a compromised deployer
 or direct calls into internal Java services.
