@@ -322,6 +322,21 @@ and is isolated in its own disposable PostgreSQL 17 environment.
 It retains the existing 8-client-worker/32-outstanding safety bounds.
 The opt-in experiment has not yet been executed on the new commit.
 
+## Milestone 21 — Larger synthetic payment corpus and request-level evidence
+
+[Chapter 65: larger-corpus and CSV evidence tutorial](docs/learning/65-large-corpus-raw-latency-evidence-from-zero.md)
+teaches the opt-in 128-payment-per-merchant dataset, bounded localhost
+100-RPS experiment, and privacy-conscious 6,000-row request latency CSV.
+
+```bash
+bash ops/benchmarks/http/run-large-corpus-evidence-local.sh
+```
+
+The opt-in runner checks the CSV contains 6,000 data rows before
+reporting success. Existing test defaults retain 8 seeded payments
+per merchant and do not export raw data unless configured. New local
+results must be measured; none are claimed by the implementation.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
