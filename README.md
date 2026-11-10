@@ -277,6 +277,23 @@ and interview questions. The new regression is part of
 `PaymentBearerTokenIT`; a separate sustained performance lab
 is not yet implemented.
 
+## Milestone 18 Part B — Sustained local mixed HTTP experiment
+
+[Chapter 59: learn sustained HTTP load testing from zero](docs/learning/59-sustained-mixed-http-workload-from-zero.md)
+explains each concept and code/configuration change, the system
+architecture, safety thresholds, exact commands, how to interpret
+latency/connection/GC output, troubleshooting and interview questions.
+
+```bash
+bash ops/benchmarks/http/run-sustained-local.sh
+```
+
+The new opt-in runner uses two independent disposable PostgreSQL
+environments: **25 RPS for 30 seconds (750 calls)**, then **50 RPS
+for 60 seconds (3,000 calls)**. It stops on the first failure. The
+legacy 12-second rate ladders remain the default. No sustained
+performance result is claimed until the developer runs this locally.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
