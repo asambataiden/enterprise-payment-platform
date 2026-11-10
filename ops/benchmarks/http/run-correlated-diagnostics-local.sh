@@ -19,50 +19,63 @@ printf 'Milestone 22: isolated localhost GC/safepoint and client timing diagnost
 printf 'HTTP rate=100 RPS duration=60s merchants=4 records_per_merchant=128\n'
 printf 'Maven log: %s\nCSV: %s\nGC/safepoint log: %s\n' "$log" "$csv" "$gc"
 
-# Surefire can run its forked test JVM with a working directory
-# different from the shell's directory. Do not rely on relative -Xlog
-# paths. The project path itself contains spaces, so JVM options must
-# reference an absolute space-free temporary path.
+# JAVA_TOOL_OPTIONS is inherited by Maven's process AND its forked
+# Surefire test JVM. The %p placeholder produces separate files per PID.
+# Never accept a Maven-process or java -version log as test-JVM evidence.
 jvm_temp_dir="$(mktemp -d /tmp/enterprise-payment-jvm.XXXXXXXX)" || {
-  echo 'Cannot create JVM diagnostic directory' >&2
+  echo 'Cannot create space-free JVM diagnostic directory' >&2
   exit 2
 }
-jvm_temp_log="$jvm_temp_dir/safepoint-gc.log"
-preserve_jvm_log() {
-  if [[ -f "$jvm_temp_log" ]]; then
-    cp "$jvm_temp_log" "$gc" || true
+jvm_log_pattern="$jvm_temp_dir/diagnostic-%p.log"
+preserve_jvm_logs() {
+  status=$?
+  if [[ "$status" -ne 0 ]]; then
+    for source in "$jvm_temp_dir"/diagnostic-*.log; do
+      [[ -f "$source" ]] || continue
+      cp "$source" "$out/$id-$(basename "$source")" || true
+    done
+    echo "Diagnostic failure: any JVM logs retained under $out" >&2
   fi
   rm -rf "$jvm_temp_dir"
 }
-trap preserve_jvm_log EXIT
+trap preserve_jvm_logs EXIT
 
-# Preflight JVM unified logging in the SAME absolute directory.
-# Clear its output so it cannot be mistaken for proof that Surefire's
-# forked JVM used the logging option.
-if ! java "-Xlog:gc*,safepoint:file=$jvm_temp_log:uptimemillis,level,tags" \
-        -version >/dev/null 2>&1; then
-  echo 'JVM logging preflight failed; no load was generated' >&2
+# Test this JVM option, then REMOVE all preflight logs. It does not prove
+# the test JVM is instrumented; that proof comes from matching its PID.
+if ! JAVA_TOOL_OPTIONS="-Xlog:gc*,safepoint:file=$jvm_log_pattern:uptimemillis,level,tags" \
+    java -version >/dev/null 2>&1; then
+  echo 'JVM unified logging option not supported; no traffic generated' >&2
   exit 2
 fi
-rm -f "$jvm_temp_log"
+for source in "$jvm_temp_dir"/diagnostic-*.log; do
+  [[ -f "$source" ]] && rm -f "$source"
+done
 
-if ! (cd "$root" && mvn -B --no-transfer-progress -f "$root/pom.xml" \
+if ! (cd "$root" && \
+    JAVA_TOOL_OPTIONS="-Xlog:gc*,safepoint:file=$jvm_log_pattern:uptimemillis,level,tags" \
+    mvn -B --no-transfer-progress -f "$root/pom.xml" \
     -Dmixed.lab.rate=100 -Dmixed.lab.duration.seconds=60 \
     -Dmixed.lab.seed.records=128 \
     "-Dmixed.lab.csv.path=$csv" \
-    "-DargLine=-Xlog:gc*,safepoint:file=$jvm_temp_log:uptimemillis,level,tags" \
     -Dtest=MixedHttpWorkloadLab test) >"$log" 2>&1; then
   grep -E 'MIXED_HTTP_LAB|Tests run:|BUILD FAILURE|ERROR' "$log" | tail -n 70 || true
-  echo 'STOP: isolated stage failed. Full evidence kept.' >&2
+  echo 'STOP: HTTP workload failed. Inspect Maven and diagnostic logs.' >&2
   exit 1
 fi
 grep -E 'MIXED_HTTP_LAB|Tests run:|BUILD SUCCESS' "$log" || true
-if [[ ! -s "$jvm_temp_log" ]]; then
-  echo 'Evidence failure: forked Surefire JVM did not create a nonempty GC/safepoint log.' >&2
-  echo 'The HTTP test passed, but JVM logging is not yet verified. Inspect the Maven log.' >&2
+
+test_jvm_pid="$(sed -n 's/.*MIXED_HTTP_LAB test_jvm_pid=\\([0-9][0-9]*\\).*/\\1/p' "$log")"
+if [[ ! "$test_jvm_pid" =~ ^[0-9]+$ ]]; then
+  echo 'Evidence failure: one test JVM PID was not recorded' >&2
   exit 1
 fi
-cp "$jvm_temp_log" "$gc"
+test_jvm_log="$jvm_temp_dir/diagnostic-$test_jvm_pid.log"
+if [[ ! -s "$test_jvm_log" ]]; then
+  echo "Evidence failure: missing JVM log for Surefire test PID $test_jvm_pid" >&2
+  echo 'Maven may have succeeded, but the logging evidence is incomplete.' >&2
+  exit 1
+fi
+cp "$test_jvm_log" "$gc"
 [[ -s "$gc" && -f "$csv" ]] || { echo 'Missing GC or CSV evidence' >&2; exit 1; }
 [[ "$(awk 'END{print NR}' "$csv")" -eq 6001 ]] || { echo 'CSV row count mismatch' >&2; exit 1; }
 python3 "$root/ops/benchmarks/http/analyze-correlated-diagnostics.py" "$csv" "$gc" "$log" | tee "$analysis"
