@@ -33,14 +33,12 @@ import org.springframework.http.HttpStatus;
 @Validated
 public class PaymentController {
     private final PaymentService service;
-    private final SimulatedPaymentTransitionService transitions;
     private final PaymentHistoryService history;
     private final PaymentSearchService search;
 
-    public PaymentController(PaymentService service, SimulatedPaymentTransitionService transitions,
+    public PaymentController(PaymentService service,
                              PaymentHistoryService history, PaymentSearchService search) {
         this.service = service;
-        this.transitions = transitions;
         this.history = history;
         this.search = search;
     }
@@ -121,30 +119,7 @@ public class PaymentController {
         return PaymentHistoryResponse.from(history.history(merchantId(jwt), id));
     }
 
-    /**
-     * Explicit learning-only lifecycle control. Requires an independent
-     * payments:simulate authority; ordinary write authority is insufficient.
-     * Event-Id identifies one logical command and must be reused on retries.
-     */
-    @Operation(summary = "Advance a simulated payment lifecycle (not real funds movement)")
-    @ApiResponse(responseCode = "200", description = "Updated or safely retried simulated payment")
-    @ApiResponse(responseCode = "400", description = "Invalid event ID or target state")
-    @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token")
-    @ApiResponse(responseCode = "403", description = "Missing simulation scope or merchant identity")
-    @ApiResponse(responseCode = "404", description = "Payment not owned by authenticated merchant")
-    @ApiResponse(responseCode = "409", description = "Invalid state transition or reused event ID")
-    @PostMapping("/{id}/simulated-transitions")
-    public PaymentResponse simulateTransition(
-            @PathVariable UUID id,
-            @RequestHeader("Event-Id") UUID eventId,
-            @Valid @RequestBody SimulatedTransitionRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
-        String merchant = merchantId(jwt);
-        transitions.advance(merchant, id, eventId, request.targetState());
-        return PaymentResponse.from(service.get(merchant, id));
-    }
-
-    private static String merchantId(Jwt jwt) {
+    static String merchantId(Jwt jwt) {
         String merchantId = jwt == null ? null : jwt.getClaimAsString("merchant_id");
         if (merchantId == null || merchantId.isBlank() || merchantId.length() > 128) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Merchant identity is required");
