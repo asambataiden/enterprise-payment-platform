@@ -1,8 +1,9 @@
 package dev.asambataiden.payment.payments.application;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -32,7 +33,8 @@ public class PaymentSearchService {
         if (merchantReference != null && (merchantReference.isBlank() || merchantReference.length() > 100)) {
             throw new IllegalArgumentException("merchantReference must contain 1 to 100 characters");
         }
-        Position after = cursor == null ? null : decode(cursor);
+        String queryFingerprint = fingerprint(merchantId, status, merchantReference);
+        Position after = cursor == null ? null : decode(cursor, queryFingerprint);
 
         // Immutable creation time and unique ID make this a stable keyset
         // even when payment statuses change. All predicates are bound values.
@@ -69,28 +71,56 @@ public class PaymentSearchService {
         boolean hasMore = fetched.size() > limit;
         List<PaymentResult> items = List.copyOf(fetched.subList(0, Math.min(limit, fetched.size())));
         String nextCursor = hasMore
-                ? encode(new Position(items.getLast().createdAt(), items.getLast().id())) : null;
+                ? encode(new Position(items.getLast().createdAt(), items.getLast().id()), queryFingerprint) : null;
         return new SearchPage(items, nextCursor, hasMore);
     }
 
-    private static String encode(Position position) {
-        String raw = position.createdAt() + "|" + position.id();
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    /**
+     * The v1 cursor binds its position to the validated merchant and filters.
+     * This is an integrity check for user mistakes, not an authentication
+     * mechanism: every SQL query still enforces merchant ownership.
+     */
+    private static String fingerprint(String merchantId, String status, String merchantReference) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            String canonical = merchantId.length() + ":" + merchantId
+                    + "|" + (status == null ? "-1:" : status.length() + ":" + status)
+                    + "|" + (merchantReference == null ? "-1:" :
+                            merchantReference.length() + ":" + merchantReference);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    digest.digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("Required SHA-256 algorithm unavailable", error);
+        }
     }
 
-    private static Position decode(String cursor) {
+    private static String encode(Position position, String fingerprint) {
+        String raw = "v1|" + position.createdAt() + "|" + position.id() + "|" + fingerprint;
+        return Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static Position decode(String cursor, String expectedFingerprint) {
         try {
             if (cursor.isBlank() || cursor.length() > 256) {
                 throw new IllegalArgumentException("Invalid pagination cursor");
             }
-            String value = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            byte[] bytes = Base64.getUrlDecoder().decode(cursor);
+            String value = new String(bytes, StandardCharsets.UTF_8);
             String[] parts = value.split("\\|", -1);
-            if (parts.length != 2) {
+            if (parts.length != 4 || !"v1".equals(parts[0])
+                    || !MessageDigest.isEqual(parts[3].getBytes(StandardCharsets.US_ASCII),
+                            expectedFingerprint.getBytes(StandardCharsets.US_ASCII))) {
                 throw new IllegalArgumentException("Invalid pagination cursor");
             }
-            return new Position(Instant.parse(parts[0]), UUID.fromString(parts[1]));
-        } catch (IllegalArgumentException | DateTimeParseException error) {
-            throw new IllegalArgumentException("Invalid pagination cursor");
+            Instant createdAt = Instant.parse(parts[1]);
+            UUID id = UUID.fromString(parts[2]);
+            if (createdAt.isAfter(Instant.now().plusSeconds(60))) {
+                throw new IllegalArgumentException("Invalid pagination cursor");
+            }
+            return new Position(createdAt, id);
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("Invalid pagination cursor", error);
         }
     }
 
