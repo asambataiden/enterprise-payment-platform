@@ -160,7 +160,7 @@ class SimulatedPaymentTransitionServiceIT {
     @Test
     void rejectsUnownedPaymentWithoutAnyWrites() {
         UUID payment = create("merchant-transitions-a");
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException.class, () ->
                 transitions.advance("merchant-transitions-b", payment, UUID.randomUUID(), PaymentState.AUTHORIZED));
         assertEquals("RECEIVED", status(payment));
         assertEquals(0, count("SELECT COUNT(*) FROM payment_outbox WHERE payment_id = ?", payment));
