@@ -1,6 +1,7 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.PaymentSearchService;
 import dev.asambataiden.payment.payments.application.PaymentHistoryService;
 import java.util.List;
 import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
@@ -46,6 +47,46 @@ class PaymentControllerWebTest {
 
     @MockitoBean
     private PaymentHistoryService history;
+
+    @MockitoBean
+    private PaymentSearchService search;
+
+    @Test
+    void merchantCanSearchWithReadScope() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(search.search("merchant-a", "RECEIVED", "order-42", 10, null))
+                .thenReturn(new PaymentSearchService.SearchPage(List.of(
+                        new PaymentResult(id, new BigDecimal("12.50"), "EUR",
+                                "order-42", "RECEIVED", Instant.parse("2026-11-10T00:00:00Z"))),
+                        null, false));
+
+        mvc.perform(get("/api/v1/payments")
+                        .param("status", "RECEIVED")
+                        .param("merchantReference", "order-42")
+                        .param("limit", "10")
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payments[0].id").value(id.toString()))
+                .andExpect(jsonPath("$.hasMore").value(false));
+    }
+
+    @Test
+    void searchRejectsMissingScopeAndInvalidStatus() throws Exception {
+        mvc.perform(get("/api/v1/payments")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/payments")
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:write"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payments").param("status", "NOT_REAL")
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:read"))))
+                .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(search);
+    }
 
     @Test
     void readScopedMerchantCanViewPaymentHistory() throws Exception {
