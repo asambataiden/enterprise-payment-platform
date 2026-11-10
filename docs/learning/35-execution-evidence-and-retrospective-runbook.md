@@ -319,3 +319,17 @@ for the detailed design review and reproducible rerun.
 
 **Latest verified baseline remains:** 152 application tests and 9 secured
 broker E2E from milestone 06.7AB, **not** the failed 06.7AC execution.
+
+
+### November 10, 2026 — focused Kafka correction verified
+
+The developer fast-forwarded local branch to `1d5fa35`, confirmed the
+obsolete test name was removed, and reran `run-e2e.sh` against the
+existing broker. **12 secured-broker E2E tests passed, zero failures,
+errors or skips; BUILD SUCCESS at 04:38:28 CET**. This validates the
+corrected test code against a running secured broker, **not** the removal
+of the obsolete IdempotentWrite ACL from an already-provisioned cluster.
+Do not spend another full lab iteration solely to close that known
+provisioning-evidence gap; track it separately and prioritize core
+payment functionality. The independent Flyway duplicate-V1 problem
+remains open and is not resolved by this Kafka success.
