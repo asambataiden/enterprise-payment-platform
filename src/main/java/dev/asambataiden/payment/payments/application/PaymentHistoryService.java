@@ -25,7 +25,7 @@ public class PaymentHistoryService {
         this.jdbc = Objects.requireNonNull(jdbc);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, timeout = 5)
     public PaymentHistory history(String merchantId, UUID paymentId) {
         // The same ownership rule as GET /payments/{id}: never enumerate
         // another merchant's event IDs, even when the payment ID is known.
