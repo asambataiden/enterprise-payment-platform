@@ -18,9 +18,9 @@ sql="$script_dir/statistical.sql"
 output_dir="${1:-$root/target/postgresql-benchmark}"
 mkdir -p "$output_dir"
 output_dir="$(cd "$output_dir" && pwd)"
-run_id="$(date -u +%Y%m%dT%H%M%SZ)-statistical-$"
+run_id="$(date -u +%Y%m%dT%H%M%SZ)-statistical-$$"
 result="$output_dir/${run_id}.log"
-container="epp-pg-statistics-$"
+container="epp-pg-statistics-$$"
 
 cleanup() {
   docker rm -f "$container" >/dev/null 2>&1 || true
