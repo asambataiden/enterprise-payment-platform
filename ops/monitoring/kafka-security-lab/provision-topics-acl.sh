@@ -44,15 +44,7 @@ done
 "${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-consumer' \
   --operation Read --group payment-security-approved
 
-# The idempotent identity needs BOTH a narrow topic Write grant and a
-# cluster-level IdempotentWrite grant for InitProducerId. No wildcard topics.
-"${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-idempotent-producer' \
-  --operation Write --topic payment.security.stream
-"${broker_exec[@]}" "${acl[@]}" --add --allow-principal 'User:CN=lab-idempotent-producer' \
-  --operation IdempotentWrite --cluster
-
 "${broker_exec[@]}" "${acl[@]}" --list --topic payment.security.stream
 "${broker_exec[@]}" "${acl[@]}" --list --group payment-security-approved
-"${broker_exec[@]}" "${acl[@]}" --list --cluster
 echo "Secured lab ready: reader can Describe the allowed topic only."
 echo "Restricted topic must return TopicAuthorizationException in the E2E test."
