@@ -1,0 +1,37 @@
+name: Documentation Quality
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "ops/docs/**"
+      - ".github/workflows/docs-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "ops/docs/**"
+      - ".github/workflows/docs-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-links:
+    name: Python | Canonical documentation links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check canonical Markdown local links
+        run: python3 ops/docs/check-markdown-links.py
+      - name: Report ADR identifier and inbound-link debt (non-blocking)
+        run: python3 ops/docs/audit-adrs.py
+      - name: Report historical Markdown link debt (non-blocking)
+        shell: bash
+        run: |
+          set +e
+          python3 ops/docs/check-markdown-links.py --all 2>&1 | tee docs-link-audit.txt
+          exit 0

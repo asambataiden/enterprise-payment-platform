@@ -1,3 +1,5 @@
+> **HISTORICAL AS-BUILT SNAPSHOT — Milestone 06.6.** This page documents an earlier implementation increment, **not** the final v0.1.0 component inventory. The release includes Flyway V1–V9, an opt-in simulated-transitions HTTP controller, an opt-in scheduled outbox relay and an opt-in Kafka listener/consumer path that were added after this snapshot. The authenticated local HTTP demo runs without Kafka. For current implementation scope, start with the [technical case study](../portfolio/technical-case-study.md) and inspect the [release-tagged source](https://github.com/asambataiden/enterprise-payment-platform/tree/v0.1.0). The diagrams and prose below are intentionally preserved as historical evidence.
+
 # System architecture — bird's-eye view to modules
 
 **As-built baseline:** 06.6 on `feat/payment-ledger`. **Diagram convention:** solid connectors = current code/boundary; dashed connectors = future/optional actors or not yet wired integration. Testcontainers Kafka is real Kafka **only in tests**, not a running production cluster.

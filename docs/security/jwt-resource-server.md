@@ -1,3 +1,5 @@
+> **HISTORICAL SECURITY BASELINE — Milestones 05.1–05.5.** The route table below documents that *earlier milestone* and is **not** the complete policy in v0.1.0. The released system also includes merchant-scoped `GET /api/v1/payments` search, `GET /api/v1/payments/{id}/history`, and the conditionally registered `POST /api/v1/payments/{id}/simulated-transitions` route requiring `payments:simulate` and owner validation. Optional Prometheus and OpenAPI endpoints have separate authorities and enablement controls. Consult [current security configuration](../../src/main/java/dev/asambataiden/payment/shared/security/PaymentSecurityConfig.java), the [root API table](../../README.md#api-and-authorization) and the [security documentation index](README.md). Local Keycloak identity evidence does not prove production issuer governance.
+
 # Payment service — JWT resource-server security boundary
 
 **Status:** Milestones 05.1–05.5 implemented and verified as an educational simulated payment platform. Deployment against a real IdP remains a separate acceptance gate.

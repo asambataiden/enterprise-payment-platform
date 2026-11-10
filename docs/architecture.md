@@ -1,3 +1,5 @@
+> **HISTORICAL SNAPSHOT — Milestone 1.** This original architecture sketch predates the ledger, outbox, Kafka integration, opt-in consumer and simulation HTTP endpoint. It is retained for learning chronology, **not** the current release architecture. See [architecture navigation](architecture/README.md) and the [v0.1.0 technical case study](portfolio/technical-case-study.md).
+
 # Architecture — Milestone 1
 
 ```mermaid
