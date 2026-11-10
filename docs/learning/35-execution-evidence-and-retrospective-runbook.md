@@ -371,3 +371,61 @@ should fail and force a deliberate review.
 Full CI `clean verify` should still run before merge, not after each
 trivial test-only commit. Production settlement or refunds are not
 implemented by this test.
+
+
+### Next business increment — full simulated refund ledger reversal (November 10, 2026)
+
+**Senior-engineering gate — GO for a focused implementation, pending local verification.**
+The existing internal `SimulatedPaymentTransitionService` already atomically
+persists the state change, ledger capture journal and outbox event.
+However, `CAPTURED -> REFUNDED` previously only changed status and wrote
+an outbox message: it did **not** reverse the capture's accounting entries.
+That is an accounting correctness gap.
+
+**Decision:** For the current single-currency, full-refund-only simulation,
+append a second balanced *compensating* journal whose two posting sides
+are inverted, using the payment's persisted amount and currency. Do not
+alter or delete the capture journal. The reversal is written within the
+same PostgreSQL transaction as the status update and refund outbox
+event. Existing event-ID uniqueness and payment row lock preserve
+retry behavior. There is deliberately no refund HTTP route and no
+external payment-provider or funds transfer integration.
+
+**Architecture and six-question review:**
+1. **Why?** Refund status must not leave the simulated capture ledger
+   economically outstanding; append-only audit history is retained.
+2. **10× traffic?** Each full refund now writes one extra journal and
+   two postings; benchmark write latency, lock contention and index
+   growth before changing the design.
+3. **Dependency failure?** A ledger uniqueness/constraint failure rolls
+   back the refund status and outbox event in the same DB transaction.
+4. **Simpler?** Reuse existing service, `JournalEntry` and database
+   schema; no new event transport, tables or abstraction.
+5. **Optimization?** Atomic accounting correctness, idempotent retries,
+   clear audit trail and minimal changes.
+6. **Six-month regret?** Refund amount is currently the **entire**
+   original capture amount; partial/multiple refunds, fees, external
+   settlement and linked compensating-entry IDs are out of scope.
+   These would require an explicit domain design, not ad-hoc status updates.
+
+**Focused Testcontainers integration tests (committed; NOT executed yet):**
+- Capture then full refund: exactly two journals, opposite posting
+  sides, three outbox events and stable replay result.
+- Ledger event-ID collision during refund: previous CAPTURED state,
+  one existing journal and no refund outbox record survive.
+
+**Run locally after pulling the branch:**
+```bash
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" pull --ff-only origin feat/payment-ledger
+mvn -B -q -f "$ROOT/pom.xml" -Dit.test=SimulatedPaymentTransitionServiceIT -DskipTests=false -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false verify
+```
+The command above targets the Failsafe class but may also invoke the
+normal packaging lifecycle; see the Maven Surefire/Failsafe reports
+for exact tests executed. The full `clean verify` remains the CI gate
+before merge.
+
+**Status of prior small unit-test increment:** `PaymentStateMachineTest`
+was run locally with Maven `-q` and returned to the shell without
+an error; this provides a successful exit indication, but not an
+independent test-count report.
