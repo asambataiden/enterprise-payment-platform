@@ -1,137 +1,156 @@
-# Chapter 37 — Kafka Idempotent Producer Authorization
+# Chapter 37 — Kafka Idempotent Producer: Senior Engineering Reassessment
 
-**Milestone:** 06.7AC — code committed; local verification **pending**.
-**Previously verified:** 152 application tests + 9 secured broker E2E executions.
-**Target:** 12 real-broker E2E executions (9 prior + 3 additional).
+**Milestone 06.7AC — REWORK.** Original lab run on November 9, 2026:
+12 E2E tests executed, 11 passed and 1 failed. A *successful producer
+send* disproved the original assertion that cluster `IdempotentWrite` is
+always required. Corrected code is committed but **has not been rerun**.
 
-## 1. Payment-system use case: resilient publishing without privilege escalation
+**Previously verified checkpoint:** 152 application tests plus 9 broker E2E
+tests from milestone 06.7AB. The latest uploaded standard application
+`clean verify` **failed**, with 11 integration errors caused by duplicate
+Flyway V1 resources in the build output. Do not describe it as green.
 
-The payment outbox publisher must tolerate retryable network failures without
-unnecessarily duplicating a record within a producer session. At the same time,
-a compromised client that can publish to one topic must not automatically gain
-cluster-wide privileges or the ability to publish to other topics.
+## 1. Why are we doing this?
 
-**Business actors:** payment outbox dispatcher (producer), broker security
-administrator, payment-event consumer and platform operator. The lab tests
-synthetic records and *does not* move money.
+Our simulated payment outbox publisher may retry Kafka sends. Producer
+idempotence reduces duplicate *broker retries within the same producer
+session*. The payment business remains responsible for request idempotency,
+outbox lifecycle, replay-safe consumer inbox and unique business event IDs.
+This change must not introduce unnecessary cross-topic or cluster privilege.
 
-### Acceptance criteria
+**Architecture gate:** keep the scope to one mTLS producer identity with
+exact topic Write ACL. Do not build extra identities or ACLs based on outdated
+Kafka behavior.
 
-| ID | Identity / authorization | Scenario | Expected result |
+## 2. Senior-engineering review — six questions
+
+| Question | Assessment |
+| --- | --- |
+| Why? | Verify reliability-related producer configuration can operate with least privilege |
+| At 10× traffic? | Producer ACL is not the predicted bottleneck; benchmark broker throughput, partitions, batching, database outbox backlog and consumer lag rather than assert capacity |
+| Dependency fails? | Persist outbox event before publishing; broker failure leaves pending state, bounded retries/backoff and clear operator alerting; replay requires application-level deduplication |
+| Simpler? | Yes. Reuse `lab-producer`, which has only exact topic Write. Remove redundant `lab-idempotent-producer` and obsolete cluster grant |
+| Optimize for? | Correct business effects, least privilege, replay safety, operability, maintainability; then measured performance |
+| Six-month regrets? | Overbroad ACLs, outdated copied documentation, world-readable local lab credentials, tests that validate expected myths instead of broker reality |
+
+**Decision: REWORK** the original implementation; rerun both suites before
+changing milestone status to verified.
+
+## 3. Failure observation — what the evidence actually says
+
+The original negative test
+`topicWriteAloneCannotAuthorizeIdempotentProducerId` asserted an
+exception. In the Kafka 4.1.2 secured broker lab, the producer holding
+topic Write **successfully sent the record**, and JUnit reported:
+
+```text
+Expected java.lang.Exception to be thrown, but nothing was thrown.
+Tests run: 12, Failures: 1, Errors: 0, Skipped: 0
+BUILD FAILURE
+```
+
+This was an **incorrect test expectation**, not proof of an insecure broker.
+KIP-679 changed the nontransactional idempotent-producer authorization
+model in Kafka 2.8: topic Write permission suffices for
+`InitProducerId` when the producer has no transactional ID. The
+`IdempotentWrite` ACL was deprecated. Some Kafka authorization guides
+still contain legacy generic tables; prefer version-specific design
+and direct real-broker tests.
+
+**Historical experiment is intentionally preserved here; do not rewrite it as
+a passing run.**
+
+Reference:
+[KIP-679 — Producer will enable the strongest delivery guarantees](https://cwiki.apache.org/confluence/display/KAFKA/KIP-679%3A+Producer+will+enable+the+strongest+delivery+guarantee+by+default).
+
+## 4. Corrected authorization contract
+
+| Test | Identity | Config | Expected result |
 | --- | --- | --- | --- |
-| KSEC-06 | Idempotent producer: topic Write + cluster IdempotentWrite | Send to allowed stream using `enable.idempotence=true` | Broker acknowledges an offset |
-| KSEC-07 | Basic producer: topic Write only | Attempt idempotent send / producer ID initialization | `ClusterAuthorizationException` |
-| KSEC-08 | Idempotent producer: has cluster grant, but no Write on restricted topic | Send to forbidden topic | `TopicAuthorizationException` |
+| KSEC-06 | `lab-producer`: topic Write(stream) only | `enable.idempotence=true`, `acks=all` | Send succeeds; broker returns record metadata |
+| KSEC-07 | `lab-reader`: Describe(allowed topic) only | Idempotent producer sending to stream | `TopicAuthorizationException` |
+| KSEC-08 | `lab-producer` | Idempotent producer writing to denied topic | `TopicAuthorizationException` |
 
-The negative cases must fail for the **correct Kafka authorization reason**.
-A timeout, bad TLS identity or unavailable broker is not proof that the ACL is
-correctly enforced.
+The identity used in the two denied cases must be authenticated with a
+valid lab certificate. A timeout or unrelated handshake error cannot
+replace the explicit `TopicAuthorizationException`.
 
-## 2. What is Kafka producer idempotence?
+The existing `KafkaIdempotentProducerAuthorizationE2E` class retains
+three focused tests. The certificate generator and ACL provisioning no
+longer create the extra idempotent identity or grant cluster
+`IdempotentWrite`. The runner still selects twelve cases across four
+test classes.
 
-Kafka allocates a producer ID (PID) and uses producer sequence numbers to
-recognize duplicate retries of a batch from the same producer session.
-This mitigates duplicates from **broker/client retry of a send**. It does
-not deduplicate arbitrary *new application-level sends* with the same
-business event ID, nor guarantee end-to-end exactly-once payment processing.
+**No `transactional.id` is configured.** Transactional producers have
+separate transactional-ID ACL semantics and are not covered here.
 
-The existing application design uses an outbox/inbox and business
-idempotency controls for these independent failure surfaces.
-
-**Required producer settings for this exercise:**
-
-- `enable.idempotence=true`
-- `acks=all`
-- `retries>0`
-- `max.in.flight.requests.per.connection<=5`
-- `transactional.id` not configured (this is not a Kafka transaction lab)
-
-For operational production reliability, retry budgets and timeouts must
-follow the actual service-level objective and fault model. Three client
-retries and short deadlines here bound a disposable test; they are not
-a universal production recommendation.
-
-## 3. Why two ACL scopes are tested
-
-The Kafka authorizer checks topic `Write` independently of cluster
-`IdempotentWrite` for nontransactional idempotent publishing. A
-`transactional.id` introduces another distinct resource and authorization
-model, which is deliberately out of scope.
-
-**Principal separation:**
-
-- `User:CN=lab-producer` has only topic `Write`, preserving the previous
-  non-idempotent producer tests and demonstrating the missing grant.
-- `User:CN=lab-idempotent-producer` has topic `Write` on
-  `payment.security.stream` and cluster `IdempotentWrite`.
-- Neither producer is a broker superuser.
-- Neither producer may write to the existing
-  `payment.security.denied` topic.
-
-The `IdempotentWrite` grant is cluster-scoped because Kafka defines that
-authorization resource at cluster level. It must not be confused with a
-wildcard topic Write grant. <https://kafka.apache.org/40/security/authorization-and-acls/>
-
-## 4. Architecture and trust boundaries
+## 5. Architecture diagram
 
 ```mermaid
 flowchart LR
-    P[Basic lab producer] -->|mTLS: topic Write only| B[Secured Kafka 4.1.2 broker]
-    I[Idempotent lab producer] -->|mTLS: topic Write + cluster IdempotentWrite| B
-    B --> A[StandardAuthorizer]
-    A -->|Authorized idempotent send| T[(payment.security.stream)]
-    A -.Denied for both producers.-> D[(payment.security.denied)]
-    A -.Basic producer cannot init PID.-> X[ClusterAuthorizationException]
+    A[Outbox publisher: mTLS lab-producer] -->|topic Write only| B[Kafka SSL listener]
+    R[Describe-only reader identity] -->|idempotent send attempt| B
+    B --> Z[StandardAuthorizer]
+    Z -->|Write allowed| S[(payment.security.stream)]
+    Z -.Write denied.-> D[(payment.security.denied)]
+    Z -.Reader denied Write.-> X[TopicAuthorizationException]
 ```
+
+## 6. Successful and rejected sequences
 
 ```mermaid
 sequenceDiagram
-    participant App as Idempotent publisher
-    participant Kafka as Broker
-    participant ACL as Authorizer
-    App->>Kafka: TLS handshake using lab-idempotent-producer
-    Kafka->>ACL: Check cluster IdempotentWrite for InitProducerId
-    ACL-->>Kafka: Allow
-    Kafka-->>App: Producer ID and epoch
-    App->>Kafka: Produce to payment.security.stream with sequence number
-    Kafka->>ACL: Check topic Write
-    ACL-->>Kafka: Allow
-    Kafka-->>App: RecordMetadata(topic, partition, offset)
+    participant P as Idempotent producer
+    participant B as Broker
+    participant ACL as StandardAuthorizer
+    P->>B: mTLS lab-producer, InitProducerId
+    B->>ACL: Nontransactional producer identity has topic Write?
+    ACL-->>B: Authorized on at least one topic
+    B-->>P: ProducerId + epoch
+    P->>B: Produce payment.security.stream
+    B->>ACL: Write on destination topic?
+    ACL-->>B: Allow
+    B-->>P: RecordMetadata
+    P->>B: Produce payment.security.denied
+    B->>ACL: Write on destination topic?
+    ACL-->>B: Deny
+    B--xP: TopicAuthorizationException
 ```
 
-**Negative sequence:** `lab-producer` can satisfy topic Write but lacks
-cluster IdempotentWrite, so producer-ID initialization should fail with a
-cluster authorization error. Even the `lab-idempotent-producer` cannot
-write to the restricted topic.
+## 7. Testing and reproducibility
 
-## 5. Exact implementation changes
+The last uploaded standard regression test failed independently of Kafka:
+duplicate `V1__create_payments 2.sql` and
+`V1__create_payments.sql` were observed under
+`target/classes/db/migration/`. This caused the Flyway initializer
+to fail and 11 application integration errors (8 ledger, 3 metrics).
+The error concerns duplicate **compiled classpath resources**, not
+proof that a canonical source migration was changed.
 
-1. `generate-certificates.sh`: create `lab-idempotent-producer.p12` and
-   temporary client key/certificate, signed by the lab CA.
-2. `provision-topics-acl.sh`: grant exact topic Write and cluster
-   IdempotentWrite to the new principal. The older principal keeps only
-   topic Write.
-3. `KafkaIdempotentProducerAuthorizationE2E.java`: implement three
-   dedicated external-broker tests, including explicit assertions for
-   the expected Kafka error cause.
-4. `run-e2e.sh`: check for the new keystore, inject its path and
-   include the new class in the opt-in suite.
-
-The test does not deserialize real payment events or modify the payment DB.
-It checks the broker's principal/ACL enforcement and producer acknowledgement.
-
-## 6. Step-by-step reproducible tutorial
-
-The previously verified lab credentials were removed after milestone 06.7AB.
-Start from any tracked repository subdirectory:
+**Before rerunning:**
 
 ```bash
 ROOT="$(git rev-parse --show-toplevel)"
 git -C "$ROOT" pull --ff-only origin feat/payment-ledger
 
-# Application regression: retains the established baseline
-mvn -B --no-transfer-progress -f "$ROOT/pom.xml" clean verify
+# Inspect first; do not remove canonical source migrations.
+find "$ROOT/src/main/resources/db/migration" -maxdepth 1 -type f -print
+find "$ROOT/target/classes/db/migration" -maxdepth 1 -type f -print 2>/dev/null || true
+git -C "$ROOT" status --short
 
+# Clear only build output and run a clean build.
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" clean verify
+```
+
+If duplicates reappear after clean, inspect the source tree and sync tools
+before changing application code. A project stored in a synced folder
+can have conflicting copies; the root cause is **not yet proven** and
+must be investigated using the observed paths and versions.
+
+The prior secured-broker session has already been torn down and had its
+credentials deleted. For a new session:
+
+```bash
 cd "$ROOT/ops/monitoring/kafka-security-lab"
 bash generate-certificates.sh
 docker compose -f compose.yaml up -d
@@ -139,114 +158,53 @@ bash provision-topics-acl.sh
 bash run-e2e.sh
 ```
 
-**Expected but NOT yet verified:** 85 unit + 67 application integration
-tests (152 in the default Maven build) and 12 secured-broker E2E tests in
-a **separate opt-in** execution. Never record 164 as the count in a
-single Maven run.
+**Target (not yet proven after rework):** 152 standard application tests
+and 12 secured-broker E2E tests, each with zero failures/errors/skips.
 
-Before interpreting a failed test, check the exact producer principal and
-the broker ACL listing. The denied tests should report
-`ClusterAuthorizationException` or `TopicAuthorizationException`, not
-a generic timeout.
+After capturing sanitized summaries, tear down with
+`docker compose -f compose.yaml down -v`, inspect `generated/`,
+and delete disposable material. Passwords, PKCS12 files and CA private
+keys must never be committed or shared.
 
-## 7. Security and operations practices
+## 8. Failure analysis and hardening backlog
 
-- Use independent mTLS credentials per principal; never use the lab
-  administrator's certificate to execute payment publishing.
-- Apply topic Write to exact resources. Keep IdempotentWrite scoped to
-  the Kafka-defined cluster operation; do not grant general cluster All.
-- Keep hostname verification enabled; fail closed on unknown brokers.
-- Avoid hardcoding keystore passwords in application source or Maven CLI
-  arguments. Generated credentials are Git-ignored and disposable.
-- Preserve the separate negative authorization tests so a future
-  accidental ACL expansion causes a **red** regression.
-- A successful idempotent send tests configuration plus authorization;
-  it **does not demonstrate** exactly-once business processing,
-  retry de-duplication under failure, or transactional producer fencing.
-- The Kafka lab is a single-node, combined controller/broker topology with
-  a controller PLAINTEXT listener and anonymous controller superuser
-  exception. Production must use a secured controller architecture,
-  independently managed secrets and broker replication.
-- A previous audit identified local password/broker material using
-  permissions `0644`; avoid treating this Docker Desktop compatibility
-  workaround as production-grade secret management.
+- **What failed?** One outdated assertion: topic Write did not block
+  InitProducerId on modern Kafka. Correcting the test is appropriate;
+  granting additional privileges would have been the wrong response.
+- **What else failed?** Flyway duplicate V1 in target classpath. Isolate
+  build resource duplication from Kafka authorization debugging.
+- **What is proven?** The failed run demonstrated an authorized send
+  succeeding; other eleven E2E tests reported passing. Corrected current
+  code still needs an actual rerun.
+- **What is not proven?** Producer retry deduplication during injected
+  network failure, exactly-once payment effects, stable throughput at
+  10×, transactional producer semantics, cert rotation or production
+  controller security.
+- **Known lab secret gap:** `generated/` permissions and container
+  secret mounts currently expose temporary local credential files to
+  other local accounts. Harden separately with proper UID/GID mounts,
+  secure secret storage and a no-sync environment.
 
-### Technical alternatives and ADR discussion
+## 9. Interview defense
 
-**A. Keep idempotence off:** simplest permission profile, but unsafe as
-a generic production recommendation because client retries can duplicate
-records. Used only in the previous isolation test.
+**Q: What did the failing test teach us?**
+A: A test can fail because the requirement is wrong. Broker behavior
+was consistent with KIP-679; we removed an obsolete ACL and its
+redundant identity rather than forcing the infrastructure to satisfy an
+incorrect assumption.
 
-**B. Enable idempotence, grant cluster IdempotentWrite (chosen):**
-validates the nontransactional idempotent producer's minimum additional
-permission without granting arbitrary topic access.
+**Q: Is Kafka idempotence exactly-once payment processing?**
+A: No. Producer sequence numbers handle a subset of broker retry
+duplication. Database outbox/inbox uniqueness and domain invariants
+provide independent protection across process restarts and application
+retries.
 
-**C. Use transactional producer:** provides a different authorization
-model and coordination semantics. More complexity and not a substitute
-for outbox/inbox or database business invariants. Requires a separate
-transactional-ID and `read_committed` design review.
+**Q: Why does the group need no cluster idempotent grant?**
+A: Authorization is operation- and resource-scoped. Nontransactional
+producer initialization uses topic Write authorization on modern
+Kafka; the consumer has separate topic Read and group Read.
 
-## 8. Troubleshooting guide
-
-| Symptom | Interpretation / fix |
-| --- | --- |
-| `ClusterAuthorizationException` on the explicitly authorized idempotent identity | Confirm exact cluster IdempotentWrite ACL and mapped certificate CN |
-| `ClusterAuthorizationException` on topic-Write-only identity | Expected negative test; confirm legitimate identity still succeeds |
-| `TopicAuthorizationException` on denied topic | Expected negative test |
-| SSL handshake error for permitted identity | Verify CA, SAN, keystore, expiry and hostname checks |
-| Timeout rather than authorization exception | Check broker readiness, metadata routing and ACL setup; don't count it as a pass |
-| Wrong Maven working directory | Invoke Maven with `-f "$ROOT/pom.xml"` |
-| Failed rerun after previous cleanup | Regenerate short-lived lab material only when `generated/` is absent |
-
-### After-test teardown
-
-```bash
-docker compose -f compose.yaml down -v
-ls -la generated/
-# Confirm only disposable lab files exist before removal:
-rm -r generated/
-```
-
-The `rm` command is not a guarantee of forensic erasure, particularly
-when storage may have backups or synchronization enabled.
-
-## 9. Interview questions with answers
-
-**What is the difference between Kafka idempotence and business idempotency?**
-Producer idempotence suppresses duplicate broker retries within a producer
-session. Business idempotency guards payment intents/events across retries,
-restarts and independently created requests.
-
-**Which ACLs does a nontransactional idempotent producer need?**
-A topic Write grant for its destination and the Kafka IdempotentWrite
-authorization on the Cluster resource; neither means arbitrary topic access.
-
-**What does a successful idempotent produce test prove?**
-The secure client established a connection, obtained required producer
-authorization and received a broker acknowledgement for a synthetic record.
-It does not prove end-to-end exactly-once payment effects.
-
-**Why test the topic-Write-only identity separately?**
-Without it, a successful test using a superuser or broadly privileged
-certificate could hide an unnecessary grant. Negative controls validate
-that least-privilege boundaries are actually active.
-
-**How would you extend the test?**
-Add bounded retry/failure injection, producer fencing and transactional-ID
-authorization if using transactions, and verify inbox/business ID
-deduplication independently, including consumer restart/replay behavior.
-
-## 10. Evidence checklist (complete after local execution)
-
-- Branch and tested Git commit.
-- Maven 85/67 unit/integration results; failures/errors/skips.
-- Number of secured-broker tests executed and precise result.
-- ACL listing for exact `lab-idempotent-producer` principal.
-- Sanitized Kafka authorization errors in denied tests.
-- Broker/container teardown and deletion of temporary lab credentials.
-- Remaining production readiness gaps and follow-up tickets.
-
-**References:** Apache Kafka
-[Authorization and ACLs](https://kafka.apache.org/40/security/authorization-and-acls/),
-[Kafka 4.1 producer configuration](https://kafka.incubator.apache.org/41/configuration/producer-configs/),
-and [Kafka producer API notes](https://archive.apache.org/dist/kafka/4.1.0/javadoc/org/apache/kafka/clients/producer/KafkaProducer.html).
+**Q: Which engineering decision changed?**
+A: Cluster `IdempotentWrite` was removed as unnecessary for this Kafka
+version. The negative tests now assert real topic-level denial, and
+the documented historical failure is retained for traceability.
