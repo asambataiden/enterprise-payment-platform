@@ -106,7 +106,9 @@ ten-column timing CSV, GET/POST server and residual percentiles, and
 six offline regression checks. The same 100-RPS / 60-second Testcontainers
 envelope remains unchanged. This captures both timing boundaries
 in one JVM; a separate load-generator process is future work.
-The new workload has not been executed locally yet.
+The 6,000-call workload, all six Python regression tests, paired
+GET/POST timing evidence, JVM log, Java CI and Security CI
+were verified on November 10, 2026 at SHA `f49bc1b4`.
 
 ## Milestone 22 — JVM GC parser semantic regression fix
 
