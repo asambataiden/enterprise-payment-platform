@@ -64,9 +64,11 @@ fixture against the known values:
 | Measured-stage GC/safepoint lines | 36 |
 | Requests slower than 50 ms | 0 |
 
-These numerical values come from the previously supplied
-JVM and HTTP observations. The **new parser's output still
-needs validation using the local saved artifacts**.
+These numerical values originated in the previous JVM and HTTP
+observations. **On November 10, 2026, the developer reran the
+corrected parser on the saved Mac evidence and verified the exact
+12-pause summary.** The three standard-library regression tests
+also ran successfully (`Ran 3 tests` / `OK`).
 
 ## 4. Reproduce safely on macOS
 
@@ -91,8 +93,10 @@ The desired line is:
 MEASURED_GC_PAUSE_SUMMARY count=12 min_ms=2.502 max_ms=3.870 sum_ms=38.498
 ```
 
-**That line is an expected gate, not a reported result from the
-fixed parser until the developer runs it.**
+**This line was observed in the developer's successful local
+verification of the corrected parser**, alongside `VALIDATED rows=6000`,
+`JVM_EVENT_PHASE_COUNTS startup=69 measured=36 post_stage=0`,
+and `slow_requests_over50ms=0`. No new HTTP workload was generated.
 
 ## 5. Practical engineering lessons
 
@@ -111,3 +115,25 @@ misinterpreted it because of whitespace-sensitive tag parsing**.
 The original intermittent HTTP latency incident remains
 unexplained. We should not tune garbage collection or HikariCP
 based on either the false-zero result or a single other run.
+
+## 6. Actual verification record — November 10, 2026
+
+The user supplied the final terminal evidence after updating to
+`0e1b3aead4eab22ffffbeefa80ddec990a3fc230`:
+
+```text
+Ran 3 tests in 0.000s
+OK
+VALIDATED rows=6000 anchor_jvm_uptime_ms=4807 matching_jvm_log_lines=105
+JVM_EVENT_PHASE_COUNTS startup=69 measured=36 post_stage=0
+MEASURED_GC_PAUSE_SUMMARY count=12 min_ms=2.502 max_ms=3.870 sum_ms=38.498
+slow_requests_over50ms=0
+```
+
+**Evidence interpretation:** the GC log for the successful synthetic
+workload includes exactly twelve parsed G1 young-GC completion
+records during the measured stage, with a sum of 38.498 ms of
+logged pauses. This is not total JVM suspension time and does not
+prove that the earlier independent run's latency spikes had a GC
+or non-GC cause. The parser defect is **closed and locally verified**;
+the intermittent original tail-latency investigation remains open.
