@@ -72,6 +72,26 @@ class PaymentServiceIT {
                 ORDER BY created_at DESC, id DESC LIMIT 10
                 """, (rs, row) -> rs.getString(1), "merchant-plan-test"));
         assertTrue(plan.contains("idx_payments_merchant_created_id"), plan);
+
+        String historyDdl = jdbc.queryForObject("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'payment_outbox'
+                  AND indexname = 'idx_outbox_merchant_payment_created_id'
+                """, String.class);
+        assertNotNull(historyDdl, "Flyway V9 must create the merchant-payment history index");
+        assertTrue(historyDdl.contains("merchant_id"));
+        assertTrue(historyDdl.contains("payment_id"));
+        assertTrue(historyDdl.contains("created_at DESC"));
+        assertTrue(historyDdl.contains("id DESC"));
+        String historyPlan = String.join("\\n", jdbc.query("""
+                EXPLAIN SELECT id, target_state, created_at, dispatched_at
+                FROM payment_outbox
+                WHERE merchant_id = ? AND payment_id = ?
+                ORDER BY created_at DESC, id DESC LIMIT 101
+                """, (rs, row) -> rs.getString(1),
+                "merchant-plan-test", UUID.randomUUID()));
+        assertTrue(historyPlan.contains("idx_outbox_merchant_payment_created_id"), historyPlan);
     }
 
     @Test
