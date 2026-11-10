@@ -2,6 +2,12 @@ package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.domain.exception.IdempotencyConflictException;
 import dev.asambataiden.payment.payments.domain.exception.PaymentNotFoundException;
+import dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import dev.asambataiden.payment.shared.observability.CorrelationIdFilter;
 import jakarta.validation.ConstraintViolationException;
 import dev.asambataiden.payment.payments.api.error.PaymentApiErrorCode;
 import org.springframework.http.HttpStatus;
@@ -19,6 +25,30 @@ import org.springframework.web.server.ResponseStatusException;
  */
 @RestControllerAdvice
 public class PaymentApiExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(PaymentApiExceptionHandler.class);
+
+    @ExceptionHandler(PaymentTransitionConflictException.class)
+    ResponseEntity<ProblemDetail> transitionConflict(PaymentTransitionConflictException exception) {
+        return domainError(HttpStatus.CONFLICT, "Conflict", "Simulated payment transition rejected",
+                PaymentApiErrorCode.TRANSITION_CONFLICT);
+    }
+
+    @ExceptionHandler(DataAccessResourceFailureException.class)
+    ResponseEntity<ProblemDetail> databaseUnavailable(DataAccessResourceFailureException exception) {
+        log.error("Database resource failure; correlationId={}", MDC.get(CorrelationIdFilter.MDC_KEY), exception);
+        var response = domainError(HttpStatus.SERVICE_UNAVAILABLE, "Service Unavailable",
+                "A required service is temporarily unavailable.", PaymentApiErrorCode.SERVICE_UNAVAILABLE);
+        response.getBody().setProperty("retryable", true);
+        return response;
+    }
+
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<ProblemDetail> unexpected(Exception exception) {
+        log.error("Unhandled API exception; correlationId={}", MDC.get(CorrelationIdFilter.MDC_KEY), exception);
+        return domainError(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
+                "An unexpected error occurred.", PaymentApiErrorCode.INTERNAL_ERROR);
+    }
+
 
     @ExceptionHandler(IdempotencyConflictException.class)
     ResponseEntity<ProblemDetail> idempotencyConflict(IdempotencyConflictException exception) {
@@ -36,6 +66,10 @@ public class PaymentApiExceptionHandler {
         detail.setDetail(message);
         detail.setType(code.type());
         detail.setProperty("code", code.value());
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            detail.setProperty("correlationId", correlationId);
+        }
         return ResponseEntity.status(status).body(detail);
     }
 
@@ -52,6 +86,10 @@ public class PaymentApiExceptionHandler {
                 : PaymentApiErrorCode.BAD_REQUEST;
         detail.setType(code.type());
         detail.setProperty("code", code.value());
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            detail.setProperty("correlationId", correlationId);
+        }
         return ResponseEntity.status(status).body(detail);
     }
 
@@ -66,6 +104,10 @@ public class PaymentApiExceptionHandler {
         detail.setDetail("The request failed validation.");
         detail.setType(PaymentApiErrorCode.VALIDATION_FAILED.type());
         detail.setProperty("code", PaymentApiErrorCode.VALIDATION_FAILED.value());
+        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+        if (correlationId != null) {
+            detail.setProperty("correlationId", correlationId);
+        }
         return ResponseEntity.badRequest().body(detail);
     }
 }
