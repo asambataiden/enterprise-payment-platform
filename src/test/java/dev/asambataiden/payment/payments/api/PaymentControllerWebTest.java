@@ -52,6 +52,36 @@ class PaymentControllerWebTest {
     private PaymentSearchService search;
 
     @Test
+    void databaseResourceFailureReturns503WithoutLeakingHost() throws Exception {
+        UUID payment = UUID.randomUUID();
+        when(service.get("merchant-a", payment)).thenThrow(
+                new org.springframework.dao.DataAccessResourceFailureException(
+                        "postgres.internal.example:5432 password=supersecret"));
+        mvc.perform(get("/api/v1/payments/{id}", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:read"))))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.retryable").value(true))
+                .andExpect(jsonPath("$.detail").value("A required service is temporarily unavailable."))
+                .andExpect(jsonPath("$.correlationId").exists());
+    }
+
+    @Test
+    void malformedPaymentJsonRemains400Not500() throws Exception {
+        mvc.perform(post("/api/v1/payments")
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:write")))
+                        .header("Idempotency-Key", "invalid-json")
+                        .contentType("application/json")
+                        .content("{not valid json"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("PAYMENT_VALIDATION_FAILED"));
+    }
+
+    @Test
     void missingCredentialsReceiveProblemDetailsAndBearerChallenge() throws Exception {
         mvc.perform(get("/api/v1/payments"))
                 .andExpect(status().isUnauthorized())
