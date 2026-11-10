@@ -337,6 +337,24 @@ reporting success. Existing test defaults retain 8 seeded payments
 per merchant and do not export raw data unless configured. New local
 results must be measured; none are claimed by the implementation.
 
+## Milestone 22 — Correlated JVM and HTTP timing diagnostics (opt-in)
+
+[Chapter 69: client monotonic timing and JVM GC/safepoint logs, from zero](docs/learning/69-correlated-jvm-client-timing-diagnostics-from-zero.md)
+explains request start/end offsets, JVM uptime anchor, separate
+unified GC/safepoint logs, strict offline evidence validation,
+how to interpret time alignment and why correlation does not
+prove causation.
+
+```bash
+bash ops/benchmarks/http/run-correlated-diagnostics-local.sh
+```
+
+This runs one **100-RPS × 60-second**, 128-record-per-merchant,
+localhost-only synthetic trial with disposable PostgreSQL. It
+preserves 6,000 per-request timing rows and diagnostic logs under
+`target/http-load-lab/`. No new diagnostic result is claimed
+until the local experiment is actually executed.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
