@@ -18,6 +18,7 @@ HEADER = ("sequence", "merchant_index", "operation", "http_status",
 UPTIME = re.compile(r"MIXED_HTTP_LAB stage_start_jvm_uptime_ms=(\d+)")
 JVM_EVENT = re.compile(r"^\[(\d+)ms\]\[[^]]+\]\[([^]]+)\] (.*)$")
 PAUSE = re.compile(r"\bPause\b|Safepoint", re.IGNORECASE)
+GC_COMPLETION = re.compile(r"^GC\\((\\d+)\\) Pause .+? ([0-9]+(?:\\.[0-9]+)?)ms$")
 
 
 def analyze(csv_file, gc_file, mvn_file):
@@ -77,6 +78,24 @@ def analyze(csv_file, gc_file, mvn_file):
     post_stage_events = [event for event in events if event[0] > 60_000]
     print(f"JVM_EVENT_PHASE_COUNTS startup={len(startup_events)}"
           f" measured={len(measured_events)} post_stage={len(post_stage_events)}")
+    # GC-completion messages have a pause duration at the end of the
+    # message. Count these rather than all three corresponding log lines.
+    completed_pauses = []
+    for offset, tags, message in measured_events:
+        match = GC_COMPLETION.match(message) if tags == "gc" else None
+        if match:
+            completed_pauses.append((offset, int(match.group(1)), float(match.group(2))))
+    if completed_pauses:
+        durations = [pause[2] for pause in completed_pauses]
+        print(f"MEASURED_GC_PAUSE_SUMMARY count={len(completed_pauses)}"
+              f" min_ms={min(durations):.3f} max_ms={max(durations):.3f}"
+              f" sum_ms={sum(durations):.3f}")
+        print("MEASURED_GC_PAUSES (completion markers; JVM uptime offsets)")
+        for offset, gc_id, duration in completed_pauses:
+            print(f"gc_id={gc_id} completion_offset_ms={offset}"
+                  f" pause_duration_ms={duration:.3f}")
+    else:
+        print("MEASURED_GC_PAUSE_SUMMARY count=0 (no matching completion lines)")
     print("MEASURED-STAGE GC/SAFEPOINT LOG LINES (first 40, JVM uptime offset)")
     for offset, tags, message in measured_events[:40]:
         print(f"jvm_uptime_offset_ms={offset} tags={tags} detail={message[:180]}")
