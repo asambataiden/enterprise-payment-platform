@@ -70,6 +70,81 @@ class SimulatedPaymentTransitionServiceIT {
     }
 
     @Test
+    void fullRefundAppendsCompensatingJournalAndOutboxAtomically() {
+        String merchant = "merchant-refund-a";
+        UUID payment = create(merchant);
+        transitions.advance(merchant, payment, UUID.randomUUID(), PaymentState.AUTHORIZED);
+        UUID captureEvent = UUID.randomUUID();
+        transitions.advance(merchant, payment, captureEvent, PaymentState.CAPTURED);
+
+        UUID refundEvent = UUID.randomUUID();
+        assertEquals(PaymentState.REFUNDED,
+                transitions.advance(merchant, payment, refundEvent, PaymentState.REFUNDED));
+        assertEquals("REFUNDED", status(payment));
+        assertEquals(2, count("SELECT COUNT(*) FROM ledger_entries WHERE payment_id = ?", payment));
+        assertEquals(3, count("SELECT COUNT(*) FROM payment_outbox WHERE payment_id = ?", payment));
+        assertEquals(1, count("SELECT COUNT(*) FROM ledger_entries WHERE event_id = ?", refundEvent));
+
+        var postings = jdbc.query("""
+                SELECT e.event_id, p.account_id, p.side, p.amount
+                FROM ledger_entries e
+                JOIN ledger_postings p ON p.entry_id = e.id
+                WHERE e.payment_id = ?
+                ORDER BY e.created_at, p.line_number
+                """, (rs, index) -> rs.getString("account_id") + "|" + rs.getString("side")
+                        + "|" + rs.getBigDecimal("amount").toPlainString() + "|"
+                        + rs.getObject("event_id", UUID.class), payment);
+        assertEquals(4, postings.size());
+        assertTrue(postings.contains("simulated-clearing-receivable|DEBIT|12.50|" + captureEvent));
+        assertTrue(postings.contains("simulated-merchant-payable|CREDIT|12.50|" + captureEvent));
+        assertTrue(postings.contains("simulated-clearing-receivable|CREDIT|12.50|" + refundEvent));
+        assertTrue(postings.contains("simulated-merchant-payable|DEBIT|12.50|" + refundEvent));
+
+        // Delivery of the same refund event cannot produce another journal.
+        assertEquals(PaymentState.REFUNDED,
+                transitions.advance(merchant, payment, refundEvent, PaymentState.REFUNDED));
+        assertEquals(2, count("SELECT COUNT(*) FROM ledger_entries WHERE payment_id = ?", payment));
+        assertEquals(3, count("SELECT COUNT(*) FROM payment_outbox WHERE payment_id = ?", payment));
+        assertThrows(IllegalStateException.class,
+                () -> transitions.advance(merchant, payment, UUID.randomUUID(), PaymentState.REFUNDED));
+    }
+
+    @Test
+    void refundLedgerConflictRollsBackStatusAndOutbox() {
+        String merchant = "merchant-refund-rollback";
+        UUID payment = create(merchant);
+        transitions.advance(merchant, payment, UUID.randomUUID(), PaymentState.AUTHORIZED);
+        transitions.advance(merchant, payment, UUID.randomUUID(), PaymentState.CAPTURED);
+
+        // A legacy journal-only event is enough to collide with the ledger's
+        // unique event key; the enclosing payment transaction must roll back.
+        UUID priorEvent = UUID.randomUUID();
+        UUID otherPayment = create(merchant);
+        UUID journalId = UUID.randomUUID();
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                .executeWithoutResult(tx -> {
+                    jdbc.update("""
+                            INSERT INTO ledger_entries (id, merchant_id, payment_id, event_id, currency)
+                            VALUES (?, ?, ?, ?, 'EUR')
+                            """, journalId, merchant, otherPayment, priorEvent);
+                    jdbc.update("""
+                            INSERT INTO ledger_postings (entry_id, line_number, account_id, side, amount)
+                            VALUES (?, 1, 'a', 'DEBIT', 12.50), (?, 2, 'b', 'CREDIT', 12.50)
+                            """, journalId, journalId);
+                    jdbc.update("UPDATE ledger_entries SET finalized = TRUE WHERE id = ?", journalId);
+                });
+
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class,
+                () -> transitions.advance(merchant, payment, priorEvent, PaymentState.REFUNDED));
+        assertEquals("CAPTURED", status(payment));
+        assertEquals(1, count("SELECT COUNT(*) FROM ledger_entries WHERE payment_id = ?", payment));
+        assertEquals(0, count("""
+                SELECT COUNT(*) FROM payment_outbox
+                WHERE payment_id = ? AND target_state = 'REFUNDED'
+                """, payment));
+    }
+
+    @Test
     void replayIsIdempotentButEventReuseWithDifferentStateIsRejected() {
         UUID payment = create("merchant-transitions-a");
         UUID eventId = UUID.randomUUID();
