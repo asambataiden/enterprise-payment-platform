@@ -19,6 +19,15 @@ explains each test stage, its SQL evidence, expected HTTP results,
 terminal commands and the difference between correctness and load
 testing. Read it after the [beginner playbook](00-start-from-zero-beginner-playbook.md).
 
+## Milestone 18 Part B — Sustained load, starting from first principles
+
+[Chapter 59: controlled 30/60-second sustained HTTP workload](59-sustained-mixed-http-workload-from-zero.md)
+documents the actual implementation, why the new duration property
+is bounded, the disposable environment, runtime commands, metrics
+and their limitations, troubleshooting, examples and interview
+questions. The test remains opt-in; **no measured results exist
+until a local run is supplied**.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
