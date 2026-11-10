@@ -82,7 +82,8 @@ class MixedHttpWorkloadLab {
     @Autowired HikariDataSource pool;
     @Autowired PaymentService payments;
 
-    record Sample(boolean write, int status, double ms, int merchantIndex, int window, int sequence) {}
+    record Sample(boolean write, int status, double ms, int merchantIndex, int window, int sequence,
+                  double clientStartOffsetMs, double clientEndOffsetMs) {}
     record PoolSample(int active, int idle, int pending, int total, int dbWaiting) {}
     record MerchantTarget(String merchant, String token, List<URI> readUrls) {}
 
@@ -111,7 +112,8 @@ class MixedHttpWorkloadLab {
         sorted.sort(Comparator.naturalOrder());
         return sorted.get(Math.max(0, (int) Math.ceil(sorted.size() * pct) - 1));
     }
-    private Sample send(HttpClient http, List<MerchantTarget> merchants, String runId, int n)
+    private Sample send(HttpClient http, List<MerchantTarget> merchants, String runId, int n,
+                        long measuredOriginNs)
             throws Exception {
         boolean write = n % 5 == 0; // 80 percent GET, 20 percent POST
         int requestNumber = Math.abs(n);
@@ -130,11 +132,14 @@ class MixedHttpWorkloadLab {
         } else request.GET();
         long begin = System.nanoTime();
         var response = http.send(request.build(), HttpResponse.BodyHandlers.discarding());
+        long finish = System.nanoTime();
         // Window is based on the intended dispatch sequence, not the
         // completion time, so a slow response cannot move to another bucket.
         int window = n < 0 ? -1 : (n - 1) / (RATE * 10);
         return new Sample(write, response.statusCode(),
-                (System.nanoTime() - begin) / 1e6, merchantIndex, window, n);
+                (finish - begin) / 1e6, merchantIndex, window, n,
+                measuredOriginNs == 0 ? -1 : (begin - measuredOriginNs) / 1e6,
+                measuredOriginNs == 0 ? -1 : (finish - measuredOriginNs) / 1e6);
     }
     private static void report(String phase, List<Sample> results) {
         for (boolean write : new boolean[]{false, true}) {
@@ -222,12 +227,14 @@ class MixedHttpWorkloadLab {
         }
         Files.createDirectories(expectedDirectory);
         try (var writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
-            writer.write("sequence,merchant_index,operation,http_status,latency_ms,window_start_second");
+            writer.write("sequence,merchant_index,operation,http_status,latency_ms,window_start_second"
+                    + ",client_start_offset_ms,client_end_offset_ms");
             writer.newLine();
             for (Sample s : samples) {
-                writer.write(String.format(Locale.ROOT, "%d,%d,%s,%d,%.6f,%d",
+                writer.write(String.format(Locale.ROOT, "%d,%d,%s,%d,%.6f,%d,%.6f,%.6f",
                         s.sequence(), s.merchantIndex(), s.write() ? "POST" : "GET",
-                        s.status(), s.ms(), s.window() * 10));
+                        s.status(), s.ms(), s.window() * 10,
+                        s.clientStartOffsetMs(), s.clientEndOffsetMs()));
                 writer.newLine();
             }
         }
@@ -257,7 +264,7 @@ class MixedHttpWorkloadLab {
              var workers = Executors.newFixedThreadPool(CONCURRENCY);
              var monitoring = Executors.newSingleThreadScheduledExecutor()) {
             var warmup = new ArrayList<Sample>();
-            for (int n = 1; n <= 20; n++) warmup.add(send(http, merchants, runId, -n));
+            for (int n = 1; n <= 20; n++) warmup.add(send(http, merchants, runId, -n, 0));
             report("warmup", warmup);
             assertTrue(warmup.stream().allMatch(s -> s.status() == (s.write() ? 201 : 200)));
 
@@ -290,6 +297,14 @@ class MixedHttpWorkloadLab {
             long gcCountStart = collectors.stream().mapToLong(bean ->
                     Math.max(0, bean.getCollectionCount())).sum();
             long start = System.nanoTime();
+            // JVM unified logs use JVM uptime; capture uptime at the
+            // same measurement boundary for approximate GC time alignment.
+            long jvmUptimeAtStageStartMs =
+                    java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime();
+            System.out.printf(Locale.ROOT,
+                    "MIXED_HTTP_LAB stage_start_jvm_uptime_ms=%d"
+                    + " timing_basis=monotonic_client_offsets%n",
+                    jvmUptimeAtStageStartMs);
             var permits = new java.util.concurrent.Semaphore(MAX_IN_FLIGHT);
             var maxBacklog = new java.util.concurrent.atomic.AtomicInteger();
             long maxScheduleLagNs = 0;
@@ -309,7 +324,7 @@ class MixedHttpWorkloadLab {
                     try {
                         futures.add(workers.submit(() -> {
                             try {
-                                return send(http, merchants, runId, sequence);
+                                return send(http, merchants, runId, sequence, start);
                             } finally {
                                 permits.release();
                             }
