@@ -1,5 +1,17 @@
 # Chapter 55 — Multi-Tenant Repeatability and JVM Telemetry Lab
 
+> **Correction discovered in Milestone 19 (Chapter 61):** The earlier
+> benchmark's merchant-selection logic unintentionally directed **all
+> POST/write requests to merchant 0**, because both the POST selector
+> and merchant selector depended on correlated modulo values. The
+> overall 70/10/10/10 tenant assumption **did not hold separately for
+> writes**. The recorded outcomes remain accurate for the workload
+> actually executed, but must **not** be presented as evidence of
+> per-tenant write fairness. The scheduler was corrected afterward,
+> with a dedicated unit test and per-tenant statistics. See
+> [Chapter 61](61-tenant-fairness-and-windowed-latency-from-zero.md).
+>
+
 ## Motivation
 
 Chapter 54's 25/50/100-RPS ladder passed but measured one tenant and
