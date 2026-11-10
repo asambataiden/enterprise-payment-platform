@@ -1,5 +1,17 @@
 # Chapter 60 — Sustained Mixed HTTP Workload: Actual Results and Beginner Walkthrough
 
+> **Correction discovered in Milestone 19 (Chapter 61):** The earlier
+> benchmark's merchant-selection logic unintentionally directed **all
+> POST/write requests to merchant 0**, because both the POST selector
+> and merchant selector depended on correlated modulo values. The
+> overall 70/10/10/10 tenant assumption **did not hold separately for
+> writes**. The recorded outcomes remain accurate for the workload
+> actually executed, but must **not** be presented as evidence of
+> per-tenant write fairness. The scheduler was corrected afterward,
+> with a dedicated unit test and per-tenant statistics. See
+> [Chapter 61](61-tenant-fairness-and-windowed-latency-from-zero.md).
+>
+
 ## At a glance
 
 **Verified locally:** two isolated synthetic HTTP load stages passed.
