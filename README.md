@@ -267,6 +267,16 @@ stage. Read [Chapter 55](docs/learning/55-multi-tenant-repeatability-performance
 It is not included in Java CI and **no measurement is claimed before
 the local run**.
 
+## Milestone 18 — Beginner tutorial: concurrent idempotent HTTP retries
+
+[Chapter 57: Concurrent payment retries from zero](docs/learning/57-idempotency-under-concurrent-http-retries-from-zero.md)
+walks through the business problem, beginner vocabulary, architecture,
+eight simultaneously released signed-JWT HTTP requests, database
+invariants, error handling, tenant isolation, commands, troubleshooting
+and interview questions. The new regression is part of
+`PaymentBearerTokenIT`; a separate sustained performance lab
+is not yet implemented.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
