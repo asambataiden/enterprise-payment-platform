@@ -64,7 +64,7 @@ if ! (cd "$root" && \
 fi
 grep -E 'MIXED_HTTP_LAB|Tests run:|BUILD SUCCESS' "$log" || true
 
-test_jvm_pid="$(sed -n 's/.*MIXED_HTTP_LAB test_jvm_pid=\\([0-9][0-9]*\\).*/\\1/p' "$log")"
+test_jvm_pid="$(sed -n 's/.*MIXED_HTTP_LAB test_jvm_pid=\([0-9][0-9]*\).*/\1/p' "$log")"
 if [[ ! "$test_jvm_pid" =~ ^[0-9]+$ ]]; then
   echo 'Evidence failure: one test JVM PID was not recorded' >&2
   exit 1
