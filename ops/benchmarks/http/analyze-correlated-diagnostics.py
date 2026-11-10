@@ -14,6 +14,7 @@ from pathlib import Path
 HEADER = ("sequence", "merchant_index", "operation", "http_status",
           "latency_ms", "window_start_second",
           "client_start_offset_ms", "client_end_offset_ms")
+SERVER_COLUMNS = ("server_start_offset_ms", "server_elapsed_ms")
 
 UPTIME = re.compile(r"MIXED_HTTP_LAB stage_start_jvm_uptime_ms=(\d+)")
 JVM_EVENT = re.compile(r"^\[(\d+)ms\]\[[^]]+\]\[([^]]+)\] (.*)$")
@@ -45,10 +46,15 @@ def analyze(csv_file, gc_file, mvn_file):
     anchor_ms = anchors[0]
     samples = []
     counts = Counter()
+    server_durations = {"GET": [], "POST": []}
+    residuals = {"GET": [], "POST": []}
+    negative_residuals = 0
     with Path(csv_file).open(newline="", encoding="utf-8") as stream:
         reader = csv.DictReader(stream)
-        if tuple(reader.fieldnames or ()) != HEADER:
+        header = tuple(reader.fieldnames or ())
+        if header not in (HEADER, HEADER + SERVER_COLUMNS):
             raise ValueError("Wrong diagnostic CSV header")
+        with_server_timings = header == HEADER + SERVER_COLUMNS
         for row in reader:
             seq = int(row["sequence"])
             merchant = int(row["merchant_index"])
@@ -67,6 +73,22 @@ def analyze(csv_file, gc_file, mvn_file):
                     or duration < 0 or start < 0 or end < start
                     or abs((end - start) - duration) > 0.02):
                 raise ValueError(f"Invalid request timing at sequence {seq}")
+            if with_server_timings:
+                server_start = float(row["server_start_offset_ms"])
+                server_elapsed = float(row["server_elapsed_ms"])
+                # Both clocks are System.nanoTime in the same test JVM.
+                # Small negative residuals may arise from filter/client
+                # finalization races; report rather than misattribute.
+                if (not all(map(math.isfinite, (server_start, server_elapsed)))
+                        or server_elapsed < 0 or server_start < 0
+                        or server_start < start - 1.0
+                        or server_start > end + 1.0):
+                    raise ValueError(f"Invalid server timing at sequence {seq}")
+                residual = duration - server_elapsed
+                server_durations[op].append(server_elapsed)
+                residuals[op].append(residual)
+                if residual < 0:
+                    negative_residuals += 1
             samples.append((seq, merchant, op, duration, start, end))
             counts[(merchant, op)] += 1
     if len(samples) != 6000 or len({s[0] for s in samples}) != 6000:
@@ -76,6 +98,22 @@ def analyze(csv_file, gc_file, mvn_file):
         if counts[(merchant, "GET")] != reads or counts[(merchant, "POST")] != writes:
             raise ValueError(f"Incorrect merchant operation counts: {merchant}")
 
+    if with_server_timings:
+        print("CLIENT_VS_SERVER_TIMING (same test JVM; elapsed milliseconds)")
+        for op in ("GET", "POST"):
+            values = sorted(server_durations[op])
+            rests = sorted(residuals[op])
+            def p95(sequence):
+                return sequence[max(0, math.ceil(len(sequence) * 0.95) - 1)]
+            print(f"operation={op} samples={len(values)}"
+                  f" server_p95_ms={p95(values):.3f}"
+                  f" residual_p95_ms={p95(rests):.3f}"
+                  f" server_max_ms={values[-1]:.3f}")
+        print(f"negative_client_minus_server_residuals={negative_residuals}")
+        print("The residual includes transport, HTTP client, and instrumentation effects;"
+              " it is NOT a measured network-only latency.")
+    else:
+        print("CLIENT_VS_SERVER_TIMING unavailable: legacy 8-column CSV")
     events = []
     for line in Path(gc_file).read_text(encoding="utf-8", errors="replace").splitlines():
         m = JVM_EVENT.match(line)
