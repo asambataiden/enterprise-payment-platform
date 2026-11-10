@@ -22,6 +22,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -59,6 +60,9 @@ class PaymentBearerTokenIT {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TrustedTestIssuer {
@@ -146,6 +150,76 @@ class PaymentBearerTokenIT {
         mvc.perform(get(location)
                         .header("Authorization", "Bearer " + trusted("merchant-b", "payments:read")))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void signedJwtMerchantCanSimulateLifecycleButOtherPrincipalsCannot() throws Exception {
+        String owner = "merchant-http-flow-" + UUID.randomUUID();
+        String ownerToken = trusted(owner, "payments:read payments:write payments:simulate");
+        var created = mvc.perform(post("/api/v1/payments")
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .header("Idempotency-Key", "http-lifecycle-" + UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":12.50,"currency":"EUR","merchantReference":"http-simulated-flow"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String location = created.getResponse().getHeader("Location");
+        org.junit.jupiter.api.Assertions.assertNotNull(location);
+        UUID paymentId = UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
+        String transitionUrl = "/api/v1/payments/{id}/simulated-transitions";
+
+        // A valid signed token with ordinary write rights is insufficient.
+        mvc.perform(post(transitionUrl, paymentId)
+                        .header("Authorization", "Bearer " + trusted(owner, "payments:write"))
+                        .header("Event-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetState\":\"AUTHORIZED\"}"))
+                .andExpect(status().isForbidden());
+
+        // Correct scope but another authenticated merchant cannot affect this payment.
+        mvc.perform(post(transitionUrl, paymentId)
+                        .header("Authorization", "Bearer " + trusted("other-" + owner, "payments:simulate"))
+                        .header("Event-Id", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetState\":\"AUTHORIZED\"}"))
+                .andExpect(status().isNotFound());
+
+        UUID authorizeEvent = UUID.randomUUID();
+        UUID captureEvent = UUID.randomUUID();
+        UUID refundEvent = UUID.randomUUID();
+        for (var transition : java.util.List.of(
+                new java.util.AbstractMap.SimpleImmutableEntry<>(authorizeEvent, "AUTHORIZED"),
+                new java.util.AbstractMap.SimpleImmutableEntry<>(captureEvent, "CAPTURED"),
+                new java.util.AbstractMap.SimpleImmutableEntry<>(refundEvent, "REFUNDED"))) {
+            mvc.perform(post(transitionUrl, paymentId)
+                            .header("Authorization", "Bearer " + ownerToken)
+                            .header("Event-Id", transition.getKey().toString())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"targetState\":\"" + transition.getValue() + "\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value(transition.getValue()));
+        }
+
+        // An exact retry reuses the committed event, rather than creating a second refund.
+        mvc.perform(post(transitionUrl, paymentId)
+                        .header("Authorization", "Bearer " + ownerToken)
+                        .header("Event-Id", refundEvent.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetState\":\"REFUNDED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REFUNDED"));
+
+        mvc.perform(get(location).header("Authorization", "Bearer " + ownerToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REFUNDED"));
+        org.junit.jupiter.api.Assertions.assertEquals(3L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM payment_outbox WHERE merchant_id = ? AND payment_id = ?",
+                Long.class, owner, paymentId));
+        org.junit.jupiter.api.Assertions.assertEquals(2L, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM ledger_entries WHERE merchant_id = ? AND payment_id = ?",
+                Long.class, owner, paymentId));
     }
 
     @Test
