@@ -16,3 +16,7 @@ Two existing records have the same **ADR-0001** identifier but different decisio
 Until resolved, distinguish these records by their **full filename**, not the duplicate ID. In the current code the actual deployment shape is a single Spring Boot application (modular monolith); a future microservices target is a proposal, not an as-built fact.
 
 New records: uniquely numbered, lower-case kebab-case, with title, status, date, context, decision, considered options, tradeoffs, verification and a supersedes/superseded-by link where relevant. See [documentation standards](../documentation-standards.md).
+
+## Repeatable ADR identity and link audit
+
+Run `python3 ops/docs/audit-adrs.py` from any working directory (the script anchors paths to its own repository root). The default mode reports numbering collisions and explicit relative Markdown links without modifying files. Run `python3 ops/docs/audit-adrs.py --strict` to require unique identifiers **after** the tracked collision has been resolved; strict mode currently fails by design. The nonblocking audit runs in Documentation Quality CI.
