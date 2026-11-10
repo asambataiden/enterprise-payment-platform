@@ -15,6 +15,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
@@ -75,28 +78,33 @@ public class PaymentApiExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     ResponseEntity<ProblemDetail> knownHttpError(ResponseStatusException exception) {
-        var status = exception.getStatusCode();
-        var detail = ProblemDetail.forStatus(status);
-        detail.setTitle(status.value() == 403 ? "Forbidden" :
-                status.value() == 409 ? "Conflict" :
-                status.value() == 404 ? "Not Found" : "Bad Request");
-        detail.setDetail(exception.getReason());
-        var code = status.value() == 403 ? PaymentApiErrorCode.MERCHANT_IDENTITY_REQUIRED
-                : status.value() == 409 ? PaymentApiErrorCode.TRANSITION_CONFLICT
-                : PaymentApiErrorCode.BAD_REQUEST;
-        detail.setType(code.type());
-        detail.setProperty("code", code.value());
-        String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
-        if (correlationId != null) {
-            detail.setProperty("correlationId", correlationId);
-        }
-        return ResponseEntity.status(status).body(detail);
+        int value = exception.getStatusCode().value();
+        return switch (value) {
+            case 400 -> domainError(HttpStatus.BAD_REQUEST, "Bad Request",
+                    "Invalid payment request.", PaymentApiErrorCode.BAD_REQUEST);
+            case 403 -> domainError(HttpStatus.FORBIDDEN, "Forbidden",
+                    "Merchant identity is required.", PaymentApiErrorCode.MERCHANT_IDENTITY_REQUIRED);
+            case 404 -> domainError(HttpStatus.NOT_FOUND, "Not Found",
+                    "Payment not found.", PaymentApiErrorCode.PAYMENT_NOT_FOUND);
+            case 409 -> domainError(HttpStatus.CONFLICT, "Conflict",
+                    "Simulated payment transition rejected", PaymentApiErrorCode.TRANSITION_CONFLICT);
+            default -> {
+                if (value >= 500) {
+                    yield unexpected(exception);
+                }
+                yield domainError(HttpStatus.BAD_REQUEST, "Bad Request",
+                        "Invalid payment request.", PaymentApiErrorCode.BAD_REQUEST);
+            }
+        };
     }
 
     @ExceptionHandler({
         MethodArgumentNotValidException.class,
         ConstraintViolationException.class,
-        MissingRequestHeaderException.class
+        MissingRequestHeaderException.class,
+        MissingServletRequestParameterException.class,
+        HttpMessageNotReadableException.class,
+        MethodArgumentTypeMismatchException.class
     })
     ResponseEntity<ProblemDetail> invalidRequest(Exception exception) {
         var detail = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
