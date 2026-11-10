@@ -108,12 +108,8 @@ class MixedHttpWorkloadLab {
             throws Exception {
         boolean write = n % 5 == 0; // 80 percent GET, 20 percent POST
         int requestNumber = Math.abs(n);
-        // Vary tenant independently of GET/POST: every operation type
-        // visits all ten tenant buckets over a 50-request cycle.
-        // The old n%10 formula mapped EVERY write (n%5==0) to merchant 0.
-        int tenantBucket = ((requestNumber / 5) * 7
-                + (requestNumber % 5) * 3) % 10;
-        int merchantIndex = tenantBucket < 7 ? 0 : tenantBucket - 6;
+        // Crucially, tenant choice is not correlated with write frequency.
+        int merchantIndex = MixedHttpTenantDistribution.merchantIndex(n);
         var merchant = merchants.get(merchantIndex);
         var target = write ? URI.create("http://127.0.0.1:" + port + "/api/v1/payments")
                 : merchant.readUrls().get((requestNumber / 10) % RECORDS_PER_MERCHANT);
