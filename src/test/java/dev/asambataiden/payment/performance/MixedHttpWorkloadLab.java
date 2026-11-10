@@ -125,7 +125,9 @@ class MixedHttpWorkloadLab {
             var registration = new FilterRegistrationBean<Filter>();
             registration.setFilter(filter);
             registration.addUrlPatterns("/api/v1/payments", "/api/v1/payments/*");
-            registration.setOrder(0);
+            // Register before Spring Security so this test-only server
+            // duration includes authentication and controller processing.
+            registration.setOrder(org.springframework.core.Ordered.HIGHEST_PRECEDENCE);
             return registration;
         }
     }
