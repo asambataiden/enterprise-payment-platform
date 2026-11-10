@@ -1,4 +1,4 @@
-# Chapter 67 — Raw Request Evidence: Three Localized Latency Bursts
+# Chapter 67 — Raw Request Evidence: Localized Latency Bursts
 
 > Evidence for the synthetic Milestone 21 **100-RPS × 60-second**
 > experiment executed at Git revision
