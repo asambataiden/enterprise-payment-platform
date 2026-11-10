@@ -29,7 +29,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(PaymentController.class)
+@WebMvcTest({PaymentController.class, SimulatedPaymentController.class})
+@org.springframework.test.context.TestPropertySource(properties = "payment.simulation.enabled=true")
 @Import({CorrelationIdFilter.class, PaymentSecurityConfig.class})
 class PaymentControllerWebTest {
 
