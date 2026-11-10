@@ -98,6 +98,14 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — Client request timelines and JVM evidence
+
+[Chapter 69: correlated client offsets and GC/safepoint logging explained from zero](69-correlated-jvm-client-timing-diagnostics-from-zero.md)
+documents implemented bounded diagnostic instrumentation, the
+offline analyzer, Mac commands, limitations and interview questions.
+It does not claim the prior latency anomaly was caused by GC
+or that the new run has been executed.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
