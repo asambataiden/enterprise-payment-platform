@@ -45,6 +45,13 @@ regression test, separated GET/POST per-tenant metrics and the
 exact opt-in local experiment. Previous results must not be
 interpreted as measuring per-tenant write fairness.
 
+## Milestone 20 — Repeatability and tenant completion rates
+
+[Chapter 63: two independent longer tenant-fairness trials](63-repeated-tenant-fairness-lab-from-zero.md)
+teaches the why, what, how, commands, measurements, limitations
+and interview defense. The runner is opt-in and its performance
+results cannot be claimed before the developer's local run.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
