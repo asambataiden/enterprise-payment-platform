@@ -23,6 +23,17 @@ WORKERS = 8
 HEADER = ("sequence", "merchant_index", "operation", "http_status",
           "latency_ms", "client_start_offset_ms", "client_end_offset_ms")
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):
+        raise ValueError("Redirect refused by localhost-only synthetic client")
+
+
+# Never route test JWTs through environment-configured HTTP proxies or
+# follow a redirect to a different host.
+OPENER = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}), NoRedirect())
+
+
 
 def tenant_index(n):
     bucket = ((n // 5) * 7 + (n % 5) * 3) % 10
@@ -68,7 +79,7 @@ def send(n, port, run_id, tokens, urls, origin_ns):
         url, data=data, headers=headers, method="POST" if write else "GET")
     begin = time.perf_counter_ns()
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
+        with OPENER.open(request, timeout=5) as response:
             status = response.status
             response.read()
     except urllib.error.HTTPError as error:
