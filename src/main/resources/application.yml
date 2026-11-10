@@ -35,6 +35,10 @@ spring:
     listener:
       auto-startup: false
 payment:
+  # Simulation-only HTTP lifecycle endpoint is absent unless explicitly enabled.
+  # Never enable in an environment processing real funds.
+  simulation:
+    enabled: ${PAYMENT_SIMULATION_ENABLED:false}
   messaging:
     kafka:
       enabled: ${PAYMENT_KAFKA_ENABLED:false}
