@@ -305,6 +305,23 @@ Run `MixedHttpTenantDistributionTest` before repeating the
 [sustained HTTP experiment](ops/benchmarks/http/run-sustained-local.sh).
 The revised performance run has not yet been measured locally.
 
+## Milestone 20 — Repeatable tenant-fairness experiment (opt-in)
+
+[Chapter 63: beginner tutorial for repeatability and per-tenant throughput](docs/learning/63-repeated-tenant-fairness-lab-from-zero.md)
+explains why two independent observations are preferable to a single
+summary, how the safety limits work, how to interpret per-tenant
+completed RPS, and why p95/p99 cannot simply be averaged.
+
+```bash
+bash ops/benchmarks/http/run-repeated-sustained-local.sh
+```
+
+This runs **two independent localhost-only 100-RPS × 60-second
+synthetic trials**. Each trial produces up to 6,000 measured calls
+and is isolated in its own disposable PostgreSQL 17 environment.
+It retains the existing 8-client-worker/32-outstanding safety bounds.
+The opt-in experiment has not yet been executed on the new commit.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
