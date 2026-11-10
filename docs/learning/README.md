@@ -2,6 +2,16 @@
 
 > **Start here.** Learn the architecture from the original problem to the current Kafka outbox integration. This is an **educational simulated payments platform**, not a regulated payments implementation. Read the **implemented / planned** distinction on every page.
 
+## Complete beginner? Start here first
+
+Read the [start-from-zero beginner playbook](00-start-from-zero-beginner-playbook.md)
+before any numbered milestone. It explains the business problem, every
+basic vocabulary term, the real request path, safe setup on macOS,
+a first end-to-end use case, a HikariCP hands-on lesson and a
+repeatable teaching/evidence checklist. Our documentation standard
+is now **plain-language explanation first, precise engineering
+explanation second**, from prerequisites to tests and limitations.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
