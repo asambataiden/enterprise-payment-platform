@@ -10,6 +10,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.net.*;
@@ -305,6 +307,9 @@ class MixedHttpWorkloadLab {
 
     @Test
     void boundedPacedReadWriteHttpWorkload() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+                Boolean.getBoolean("mixed.lab.independent.client"),
+                "Independent process experiment runs the separate opt-in test");
         String runId = UUID.randomUUID().toString();
         List<MerchantTarget> merchants = new ArrayList<>();
         for (int m = 0; m < MERCHANTS; m++) {
@@ -460,4 +465,113 @@ class MixedHttpWorkloadLab {
             } finally { sampler.cancel(true); }
         }
     }
+    /**
+     * Milestone 24 — separate Python client process and server JVM.
+     * This is opt-in only; no production payment paths or service settings
+     * are changed. JVM and Python monotonic timestamps must NEVER be
+     * directly subtracted. Pair durations by the synthetic sequence ID.
+     */
+    @Test
+    void boundedIndependentProcessClientWorkload() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(
+                Boolean.getBoolean("mixed.lab.independent.client"),
+                "Explicit opt-in only");
+        assertEquals(100, RATE, "Independent process requires 100 RPS");
+        assertEquals(60, DURATION_SECONDS, "Independent process requires 60 seconds");
+        assertEquals(128, RECORDS_PER_MERCHANT, "Independent process requires 128 records/merchant");
+        assertEquals(6000, REQUESTS);
+        assertEquals(4, pool.getMaximumPoolSize());
+
+        String configured = System.getProperty("mixed.lab.independent.output");
+        assertNotNull(configured, "Independent evidence output prefix required");
+        Path directory = Path.of("target", "http-load-lab").toAbsolutePath().normalize();
+        Path prefix = Path.of(configured).toAbsolutePath().normalize();
+        assertTrue(prefix.startsWith(directory), "Output prefix must be under target/http-load-lab");
+        Files.createDirectories(directory);
+        Path childCsv = Path.of(prefix + "-independent-client.csv");
+        Path serverCsv = Path.of(prefix + "-independent-server.csv");
+        Path childLog = Path.of(prefix + "-independent-client.log");
+        Path script = Path.of("ops", "benchmarks", "http", "independent-client-local.py")
+                .toAbsolutePath().normalize();
+        assertTrue(Files.isRegularFile(script), "Missing Python localhost workload script");
+        String runId = UUID.randomUUID().toString();
+        List<MerchantTarget> merchants = new ArrayList<>();
+        for (int m = 0; m < MERCHANTS; m++) {
+            String merchant = "mixed-" + runId + "-" + m;
+            List<URI> urls = new ArrayList<>();
+            for (int index = 0; index < RECORDS_PER_MERCHANT; index++) {
+                var seed = payments.create(merchant, "seed-" + runId + "-" + index,
+                        new CreatePaymentCommand(new BigDecimal("1.25"),
+                                "EUR", "seed-" + index));
+                urls.add(URI.create("http://127.0.0.1:" + port
+                        + "/api/v1/payments/" + seed.id()));
+            }
+            merchants.add(new MerchantTarget(merchant, bearer(merchant), List.copyOf(urls)));
+        }
+
+        // Start timing before the first independent HTTP request.
+        SERVER_TIMINGS.clear();
+        measuredServerOriginNs = System.nanoTime();
+        System.out.printf(Locale.ROOT, "INDEPENDENT_LAB server_jvm_pid=%d"
+                + " server_stage_start_jvm_uptime_ms=%d%n",
+                ProcessHandle.current().pid(),
+                java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime());
+        var processBuilder = new ProcessBuilder(
+                "python3", "-u", script.toString(), childCsv.toString());
+        processBuilder.redirectErrorStream(true);
+        processBuilder.redirectOutput(childLog.toFile());
+        // No token appears in process arguments, file names or environment.
+        Process child = processBuilder.start();
+        try {
+            try (var writer = new BufferedWriter(
+                    new OutputStreamWriter(child.getOutputStream(), StandardCharsets.UTF_8))) {
+                writer.write(Integer.toString(port));
+                writer.newLine();
+                writer.write(runId);
+                writer.newLine();
+                writer.write(Integer.toString(RECORDS_PER_MERCHANT));
+                writer.newLine();
+                for (MerchantTarget target : merchants) {
+                    writer.write(target.token());
+                    writer.newLine();
+                }
+                for (MerchantTarget target : merchants) {
+                    writer.write(String.join("\t", target.readUrls().stream()
+                            .map(URI::toString).toList()));
+                    writer.newLine();
+                }
+                writer.flush();
+            }
+            if (!child.waitFor(90, TimeUnit.SECONDS)) {
+                child.destroyForcibly();
+                throw new IllegalStateException("Timed out independent HTTP client");
+            }
+            String childSummary = Files.readString(childLog);
+            assertEquals(0, child.exitValue(),
+                    "Independent client failed (no credentials in client log): " + childSummary);
+            assertTrue(childSummary.contains("INDEPENDENT_CLIENT rows=6000"),
+                    "Missing independent-client completion evidence");
+            assertEquals(6000, SERVER_TIMINGS.size(),
+                    "Exactly one server measurement per independent client sequence");
+            try (var output = Files.newBufferedWriter(serverCsv, StandardCharsets.UTF_8)) {
+                output.write("sequence,server_start_offset_ms,server_elapsed_ms");
+                output.newLine();
+                for (int sequence = 1; sequence <= REQUESTS; sequence++) {
+                    ServerTiming timing = SERVER_TIMINGS.get(sequence);
+                    assertNotNull(timing, "Server missed synthetic sequence " + sequence);
+                    assertTrue(Double.isFinite(timing.elapsedMs()) && timing.elapsedMs() >= 0);
+                    output.write(String.format(Locale.ROOT, "%d,%.6f,%.6f",
+                            sequence, timing.startOffsetMs(), timing.elapsedMs()));
+                    output.newLine();
+                }
+            }
+            System.out.println(childSummary.strip());
+            System.out.printf("INDEPENDENT_LAB client_csv=%s server_csv=%s"
+                    + " child_pid=%d server_samples=%d%n",
+                    childCsv, serverCsv, child.pid(), SERVER_TIMINGS.size());
+        } finally {
+            if (child.isAlive()) child.destroyForcibly();
+        }
+    }
+
 }
