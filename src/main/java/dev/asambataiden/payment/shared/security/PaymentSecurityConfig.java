@@ -35,6 +35,8 @@ public class PaymentSecurityConfig {
                             .hasAuthority("SCOPE_payments:simulate")
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments")
                             .hasAuthority("SCOPE_payments:write")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/*/history")
+                            .hasAuthority("SCOPE_payments:read")
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/*")
                             .hasAuthority("SCOPE_payments:read")
                         .anyRequest().denyAll())
