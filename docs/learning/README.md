@@ -61,6 +61,16 @@ teaches the why, what, how, commands, measurements, limitations
 and interview defense. The runner is opt-in and its performance
 results cannot be claimed before the developer's local run.
 
+## Milestone 21 — Seven cluster findings and diagnostic next steps
+
+[Chapter 68: seven validated >50-ms request clusters](68-seven-latency-clusters-and-diagnostic-hypotheses.md)
+records all sequence ranges, their nominal start offsets,
+affected merchants, maximum latencies, the approximately
+1.5-second spacing clue, CI evidence, and what is still
+unknown. We should next correlate actual request timings
+with JVM and host events before changing production-style
+configuration.
+
 ## Milestone 21 — Raw latency incident follow-up
 
 [Chapter 67: validated CSV findings, slow-request counts and sequence-level diagnosis](67-raw-request-clusters-latency-incident-evidence.md)
