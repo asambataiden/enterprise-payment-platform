@@ -39,9 +39,16 @@ import static org.junit.jupiter.api.Assertions.*;
 })
 @Import(MixedHttpWorkloadLab.TrustedIssuer.class)
 class MixedHttpWorkloadLab {
-    private static final int REQUESTS = 300;
+    private static final int RATE = Integer.getInteger("mixed.lab.rate", 25);
+    // Fixed 12-second offered-load window. Strict allowlist prevents accidental stress tests.
+    private static final int REQUESTS = RATE * 12;
     private static final int CONCURRENCY = 8;
-    private static final int INTERVAL_MS = 40; // at most 25 scheduled requests/second
+    private static final int MAX_IN_FLIGHT = 32;
+    static {
+        if (RATE != 25 && RATE != 50 && RATE != 100) {
+            throw new IllegalArgumentException("mixed.lab.rate must be 25, 50, or 100");
+        }
+    }
     private static final String ISSUER = "https://mixed-load.test.invalid";
     private static final KeyPair KEY = newKey();
     @Container @ServiceConnection
@@ -151,14 +158,34 @@ class MixedHttpWorkloadLab {
             }, 0, 250, TimeUnit.MILLISECONDS);
 
             long start = System.nanoTime();
+            var permits = new java.util.concurrent.Semaphore(MAX_IN_FLIGHT);
+            var maxBacklog = new java.util.concurrent.atomic.AtomicInteger();
+            long maxScheduleLagNs = 0;
             try {
                 var futures = new ArrayList<Future<Sample>>();
                 for (int n = 1; n <= REQUESTS; n++) {
-                    final int sequence = n;
-                    futures.add(workers.submit(() -> send(http, readUrl, token, runId, sequence)));
-                    long deadline = start + TimeUnit.MILLISECONDS.toNanos((long) n * INTERVAL_MS);
-                    long delay = deadline - System.nanoTime();
+                    long due = start + TimeUnit.SECONDS.toNanos(1) * (n - 1) / RATE;
+                    long delay = due - System.nanoTime();
                     if (delay > 0) TimeUnit.NANOSECONDS.sleep(delay);
+                    maxScheduleLagNs = Math.max(maxScheduleLagNs, System.nanoTime() - due);
+                    // Fail instead of growing an unbounded work queue when the generator
+                    // cannot keep up with the offered rate.
+                    assertTrue(permits.tryAcquire(), "Load generator backpressure: >32 outstanding calls");
+                    int outstanding = MAX_IN_FLIGHT - permits.availablePermits();
+                    maxBacklog.accumulateAndGet(outstanding, Math::max);
+                    final int sequence = n;
+                    try {
+                        futures.add(workers.submit(() -> {
+                            try {
+                                return send(http, readUrl, token, runId, sequence);
+                            } finally {
+                                permits.release();
+                            }
+                        }));
+                    } catch (RuntimeException rejected) {
+                        permits.release();
+                        throw rejected;
+                    }
                 }
                 var results = new ArrayList<Sample>();
                 for (var future : futures) results.add(future.get(10, TimeUnit.SECONDS));
@@ -168,11 +195,12 @@ class MixedHttpWorkloadLab {
                 int maxActive = readings.stream().mapToInt(PoolSample::active).max().orElse(-1);
                 int maxPending = readings.stream().mapToInt(PoolSample::pending).max().orElse(-1);
                 int maxDbWait = readings.stream().mapToInt(PoolSample::dbWaiting).max().orElse(-1);
-                System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB total=%d elapsed_sec=%.3f"
+                System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB rate=%d total=%d elapsed_sec=%.3f"
                         + " completed_rps=%.2f pool_samples=%d max_active=%d max_pending=%d"
-                        + " max_db_waiting=%d monitor_failures=%d%n",
-                        results.size(), elapsed, results.size() / elapsed,
-                        readings.size(), maxActive, maxPending, maxDbWait, samplingFailures.get());
+                        + " max_db_waiting=%d monitor_failures=%d max_outstanding=%d max_schedule_lag_ms=%.3f%n",
+                        RATE, results.size(), elapsed, results.size() / elapsed,
+                        readings.size(), maxActive, maxPending, maxDbWait, samplingFailures.get(),
+                        maxBacklog.get(), maxScheduleLagNs / 1e6);
                 assertEquals(REQUESTS, results.size());
                 assertEquals(0, wrong, "Unexpected status: workload gate failed");
                 assertTrue(readings.size() >= 5, "No meaningful DB/pool metrics captured");
