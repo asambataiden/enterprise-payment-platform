@@ -20,6 +20,7 @@ printf 'Milestone 24 — independent Python HTTP client and Spring Boot JVM\nUTC
 printf 'Exactly 6000 synthetic requests at 100 RPS; loopback only.\n'
 python3 -m py_compile "$root/ops/benchmarks/http/independent-client-local.py"
 python3 -m py_compile "$root/ops/benchmarks/http/analyze-independent-process.py"
+python3 "$root/ops/benchmarks/http/test_independent_process.py"
 
 if ! (cd "$root" && mvn -B --no-transfer-progress -f "$root/pom.xml" \
     -Dmixed.lab.rate=100 -Dmixed.lab.duration.seconds=60 \
