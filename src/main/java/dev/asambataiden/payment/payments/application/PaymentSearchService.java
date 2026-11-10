@@ -25,7 +25,7 @@ public class PaymentSearchService {
         this.jdbc = jdbc;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, timeout = 5)
     public SearchPage search(String merchantId, String status, String merchantReference,
                              int limit, String cursor) {
         if (limit < 1 || limit > MAX_PAGE_SIZE) {
