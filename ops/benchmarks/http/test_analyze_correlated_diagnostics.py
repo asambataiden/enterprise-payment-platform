@@ -84,11 +84,11 @@ class ClientServerEvidenceTest(unittest.TestCase):
                 writer.writerow(row)
         jvm_path.write_text(
             "[5010ms][info][gc           ] GC(1) Pause Young (Normal) "
-            "(G1 Evacuation Pause) 130M->60M(176M) 3.200ms\\n",
+            "(G1 Evacuation Pause) 130M->60M(176M) 3.200ms\n",
             encoding="utf-8")
         maven_path.write_text(
             "MIXED_HTTP_LAB stage_start_jvm_uptime_ms=5000 "
-            "timing_basis=monotonic_client_offsets\\n", encoding="utf-8")
+            "timing_basis=monotonic_client_offsets\n", encoding="utf-8")
         return csv_path, jvm_path, maven_path
 
     def test_backward_compatible_client_only_csv(self):
@@ -119,7 +119,7 @@ class ClientServerEvidenceTest(unittest.TestCase):
             pieces = rows[1].split(",")
             pieces[-1] = "-2"
             rows[1] = ",".join(pieces)
-            path.write_text("\\n".join(rows) + "\\n", encoding="utf-8")
+            path.write_text("\n".join(rows) + "\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "Invalid server timing"):
                 MODULE.analyze(*files)
 
