@@ -52,6 +52,30 @@ class PaymentControllerWebTest {
     private PaymentSearchService search;
 
     @Test
+    void missingCredentialsReceiveProblemDetailsAndBearerChallenge() throws Exception {
+        mvc.perform(get("/api/v1/payments"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type",
+                        org.hamcrest.Matchers.startsWith("application/problem+json")))
+                .andExpect(header().exists("WWW-Authenticate"))
+                .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
+                .andExpect(jsonPath("$.correlationId").exists());
+    }
+
+    @Test
+    void missingScopeReceivesSanitizedProblemDetails() throws Exception {
+        mvc.perform(get("/api/v1/payments")
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:write"))))
+                .andExpect(status().isForbidden())
+                .andExpect(header().string("Content-Type",
+                        org.hamcrest.Matchers.startsWith("application/problem+json")))
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
+                .andExpect(jsonPath("$.detail").value("Insufficient permissions."));
+    }
+
+    @Test
     void merchantCanSearchWithReadScope() throws Exception {
         UUID id = UUID.randomUUID();
         when(search.search("merchant-a", "RECEIVED", "order-42", 10, null))
