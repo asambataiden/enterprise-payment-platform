@@ -1,6 +1,8 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.PaymentHistoryService;
+import java.util.List;
 import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
 import dev.asambataiden.payment.payments.domain.PaymentState;
 import dev.asambataiden.payment.payments.application.PaymentResult;
@@ -41,6 +43,47 @@ class PaymentControllerWebTest {
 
     @MockitoBean
     private SimulatedPaymentTransitionService transitions;
+
+    @MockitoBean
+    private PaymentHistoryService history;
+
+    @Test
+    void readScopedMerchantCanViewPaymentHistory() throws Exception {
+        UUID payment = UUID.randomUUID();
+        UUID event = UUID.randomUUID();
+        var result = new PaymentResult(payment, new BigDecimal("12.50"), "EUR",
+                "order-history", "AUTHORIZED", Instant.parse("2026-11-10T00:00:00Z"));
+        when(history.history("merchant-a", payment)).thenReturn(
+                new PaymentHistoryService.PaymentHistory(result, List.of(
+                        new PaymentHistoryService.HistoryEvent(event, "AUTHORIZED",
+                                Instant.parse("2026-11-10T00:00:01Z"), null, null)), false));
+        mvc.perform(get("/api/v1/payments/{id}/history", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:read"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.id").value(payment.toString()))
+                .andExpect(jsonPath("$.events[0].eventId").value(event.toString()))
+                .andExpect(jsonPath("$.events[0].targetState").value("AUTHORIZED"))
+                .andExpect(jsonPath("$.hasMore").value(false));
+    }
+
+    @Test
+    void paymentHistoryRequiresReadScopeAndMerchantIdentity() throws Exception {
+        UUID payment = UUID.randomUUID();
+        mvc.perform(get("/api/v1/payments/{id}/history", payment))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/payments/{id}/history", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:write"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/v1/payments/{id}/history", payment)
+                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "SCOPE_payments:read"))))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(history);
+    }
 
     @Test
     void simulationScopeCanAdvanceOwnedPayment() throws Exception {
