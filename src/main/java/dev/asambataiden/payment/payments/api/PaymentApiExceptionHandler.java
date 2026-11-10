@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,12 +50,12 @@ public class PaymentApiExceptionHandler {
         return response;
     }
 
-    @ExceptionHandler(NoResourceFoundException.class)
-    ResponseEntity<ProblemDetail> noHandlerResource(NoResourceFoundException exception) {
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    ResponseEntity<ProblemDetail> noHandlerResource(Exception exception) {
         // Missing routes must remain 404, including the deliberately absent
         // training controller; no filesystem path or internal details leak.
         return domainError(HttpStatus.NOT_FOUND, "Not Found",
-                "Resource not found.", PaymentApiErrorCode.BAD_REQUEST);
+                "Resource not found.", PaymentApiErrorCode.RESOURCE_NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
