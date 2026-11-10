@@ -5,7 +5,7 @@ package dev.asambataiden.payment.payments.domain.exception;
  * state or idempotency event identity conflicts with the request.
  * No internal payment state or persistence details leave this boundary.
  */
-public final class PaymentTransitionConflictException extends RuntimeException {
+public final class PaymentTransitionConflictException extends IllegalStateException {
     public PaymentTransitionConflictException(String diagnostic) {
         super(diagnostic);
     }
