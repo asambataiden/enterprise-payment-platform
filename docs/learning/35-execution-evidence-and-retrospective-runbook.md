@@ -273,3 +273,49 @@ secret delivery (for example a dedicated broker UID/GID or copied
 secrets with `0600` or `0640` as appropriate) before any
 production-inspired credential-management exercise. Do not rely on
 `rm` for assured deletion from backups or cloud-synced storage.
+
+
+## 06.7AC — Architecture review triggered by a failed test (November 9, 2026)
+
+**Design review result: REWORK. Do not mark the milestone verified.**
+
+The developer ran the standard application Maven regression and the opt-in
+Kafka E2E lab after code implementing a new `lab-idempotent-producer`
+principal. The outputs revealed **two independent failure modes**:
+
+| Gate | Evidence | Classification |
+| --- | --- | --- |
+| Application integration | 67 tests executed, 11 errors (8 `SimulatedLedgerServiceIT`, 3 `PrometheusMetricsSecurityIT`); `BUILD FAILURE` | Flyway could not initialize a Spring context because it found duplicate V1 migrations in `target/classes/db/migration` |
+| Secured Kafka broker | 12 tests executed, 1 assertion failure; `BUILD FAILURE` | `topicWriteAloneCannotAuthorizeIdempotentProducerId` expected a rejection, but Kafka accepted the idempotent send |
+| Negative topic authorization | Idempotent producer targeting `payment.security.denied` logged `TOPIC_AUTHORIZATION_FAILED` | Correct broker topic-level denial; not a failure by itself |
+
+The duplicate migration output included
+`V1__create_payments 2.sql` as well as the canonical
+`V1__create_payments.sql`. A synced filesystem is one potential source of
+conflicting output files, but the uploaded log does **not** prove a cause.
+Inspect the canonical source directory and generated target directory
+separately before deleting anything.
+
+The unexpected successful idempotent send led to research of
+**Apache Kafka KIP-679**. Since Kafka 2.8, nontransactional producer-ID
+initialization can authorize a client holding topic Write permission without
+requiring a separate cluster IdempotentWrite ACL. The originally written
+test and extra cluster grant were therefore inappropriate for the current
+Kafka 4.1.2 lab.
+
+**Corrective action (committed, unverified):** remove the redundant
+`lab-idempotent-producer` identity and its cluster grant, replace the
+obsolete negative assertion with a positive idempotent send using
+`lab-producer`, and assert `TopicAuthorizationException` for the
+Describe-only identity and the forbidden destination topic.
+
+**Lessons for senior engineering:** do not force reality to conform to an
+old documentation table. When a test fails, independently challenge the
+requirement, environment and assertion as well as the implementation.
+Preserve both the false assumption and its evidence as an architectural
+decision correction. Never combine independent Maven failures into a
+single fabricated root cause. Consult [Chapter 37](37-kafka-idempotent-producer-authorization.md)
+for the detailed design review and reproducible rerun.
+
+**Latest verified baseline remains:** 152 application tests and 9 secured
+broker E2E from milestone 06.7AB, **not** the failed 06.7AC execution.
