@@ -28,6 +28,15 @@ and their limitations, troubleshooting, examples and interview
 questions. The test remains opt-in; **no measured results exist
 until a local run is supplied**.
 
+## Milestone 19 — Verified local evidence
+
+[Chapter 62: actual per-merchant and 10-second-window results](62-verified-tenant-fairness-and-windowed-latency-results.md)
+records the successful corrected workload at tested commit
+`217a8c87`, the two passing tenant distribution unit tests,
+3,750 successful measured HTTP calls, per-tenant and temporal p95/p99
+figures, Hikari/JVM observations and interpretation limits.
+This evidence is specific to the developer's local experiment.
+
 ## Milestone 19 — Ten-second trends and tenant fairness
 
 [Chapter 61: beginner tutorial on time-windowed latency and tenant fairness](61-tenant-fairness-and-windowed-latency-from-zero.md)
