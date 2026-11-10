@@ -192,7 +192,7 @@ class PaymentControllerWebTest {
         UUID payment = UUID.randomUUID();
         UUID event = UUID.randomUUID();
         org.mockito.Mockito.when(transitions.advance("merchant-a", payment, event, PaymentState.CAPTURED))
-                .thenThrow(new IllegalStateException("Internal state must not leak"));
+                .thenThrow(new dev.asambataiden.payment.payments.domain.exception.PaymentTransitionConflictException("Internal state must not leak"));
         mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", payment)
                         .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
                                 .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
@@ -203,6 +203,25 @@ class PaymentControllerWebTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PAYMENT_TRANSITION_CONFLICT"))
                 .andExpect(jsonPath("$.detail").value("Simulated payment transition rejected"));
+    }
+
+    @Test
+    void unexpectedTransitionFailureIsServerErrorNotBusinessConflict() throws Exception {
+        UUID payment = UUID.randomUUID();
+        UUID event = UUID.randomUUID();
+        when(transitions.advance("merchant-a", payment, event, PaymentState.CAPTURED))
+                .thenThrow(new IllegalStateException("database secret and internal detail"));
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:simulate")))
+                        .header("Event-Id", event.toString())
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"CAPTURED\"}"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.detail").value("An unexpected error occurred."))
+                .andExpect(jsonPath("$.correlationId").exists());
     }
 
     @Test
