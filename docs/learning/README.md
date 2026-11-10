@@ -98,6 +98,15 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — Identify the test JVM, not Maven
+
+[Chapter 71: per-process GC/safepoint evidence recovery from zero](71-surefire-jvm-pid-logging-recovery-from-zero.md)
+documents the second successful 6,000-request HTTP run whose JVM
+log was still missing, and explains the new `JAVA_TOOL_OPTIONS`
+logging scheme with `%p` process separation, the actual JUnit
+PID marker, preflight cleanup and independent evidence validation.
+The logging fix remains pending local verification.
+
 ## Milestone 22 — Evidence pipeline failure and recovery
 
 [Chapter 70: JVM log missing after a successful HTTP load test](70-missing-jvm-log-diagnostic-recovery.md)
