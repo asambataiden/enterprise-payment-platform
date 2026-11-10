@@ -2,6 +2,17 @@
 
 > **Educational simulated payment-intake service** built with Java 25, Spring Boot 4.1.2, PostgreSQL 17, Flyway and Maven. It does **not** move funds or integrate with a regulated payment processor and is **not production ready**.
 
+## First-time learner: full beginner walkthrough
+
+**[Start here — from zero to the complete project](docs/learning/00-start-from-zero-beginner-playbook.md)**.
+This guided starting point explains the problem without technical
+jargon, introduces all core terminology, walks through the actual
+HTTP → service → PostgreSQL request flow, includes macOS setup,
+hands-on commands with expected outcomes and troubleshooting, and
+maps the full roadmap in teaching order. Each future increment
+should follow the same **what / why / how / test / troubleshoot /
+interview** format.
+
 ## Start here — learn the entire capstone
 
 **New:** [Guided labs from scratch](docs/learning/guided-labs.md) · [Learning and Interview Handbook](docs/learning/README.md) · [Full roadmap from inception](docs/roadmap/enterprise-payment-platform.md) · [Bird's-eye architecture and module views](docs/architecture/system-overview.md) · [Sequence diagrams and use cases](docs/architecture/runtime-scenarios.md) · [Modularity, DRY and reusable library policy](docs/architecture/modularity-and-reuse.md) · [Senior engineer interview workbook](docs/learning/interview-workbook.md).
