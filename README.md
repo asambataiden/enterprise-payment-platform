@@ -70,7 +70,20 @@ curl -i http://localhost:8080/api/v1/payments \
 mvn -B clean verify
 ```
 
-**Last feature baseline** (commit `98ace4d`, milestone 06.6): [Java CI #179](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42556896756) **89/89 tests** (46 fast + 43 PostgreSQL/Kafka integration); [Security CI #93](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42556896796) passed. Documentation-only commits after this baseline require a fresh CI check on the latest SHA. Tests include a real **test Kafka broker** and PostgreSQL but do not validate a deployed identity provider, production TLS/SASL broker, or financial settlement. Trivy and Gitleaks are useful but are not a complete software-supply-chain or security assessment.
+**Current verified baseline (November 10, 2026, commit `838b434`):**
+[Java CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42755389917)
+and [Security CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42755390083)
+both passed on `feat/payment-ledger`. Java CI executes Maven `clean verify`
+with PostgreSQL/Kafka Testcontainers and the application, security and
+architecture regression tests. The locally verified
+`SimulatedPaymentLifecycleAcceptanceIT` covers the simulated
+Create → Authorize → Capture → Refund → Ledger reversal → Outbox →
+Inbox → Local projection workflow, including replay safety.
+This acceptance test uses an in-process publisher rather than a Kafka
+network hop; no real funds movement or external payment-provider
+integration is implemented. See
+[execution evidence](docs/learning/35-execution-evidence-and-retrospective-runbook.md).
+Trivy and Gitleaks do not constitute a complete security audit.
 
 ## Further hardening required
 
