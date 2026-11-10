@@ -48,7 +48,7 @@ if ! JAVA_TOOL_OPTIONS="-Xlog:gc*,safepoint:file=$jvm_log_pattern:uptimemillis,l
   exit 2
 fi
 for source in "$jvm_temp_dir"/diagnostic-*.log; do
-  [[ -f "$source" ]] && rm -f "$source"
+  if [[ -f "$source" ]]; then rm -f "$source"; fi
 done
 
 if ! (cd "$root" && \
