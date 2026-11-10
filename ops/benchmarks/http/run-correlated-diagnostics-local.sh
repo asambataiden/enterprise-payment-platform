@@ -21,12 +21,15 @@ printf 'Maven log: %s\nCSV: %s\nGC/safepoint log: %s\n' "$log" "$csv" "$gc"
 
 # The Maven project preserves argLine for forked Surefire JVMs.
 # Supplying only explicit synthetic evidence file paths avoids secret leakage.
-if ! mvn -B --no-transfer-progress -f "$root/pom.xml" \
+# Execute from the repository root: Surefire JVM args split on spaces,
+# so the -Xlog file target MUST be a relative path without spaces.
+# The project itself may reside under a directory with spaces on macOS.
+if ! (cd "$root" && mvn -B --no-transfer-progress -f "$root/pom.xml" \
     -Dmixed.lab.rate=100 -Dmixed.lab.duration.seconds=60 \
     -Dmixed.lab.seed.records=128 \
     "-Dmixed.lab.csv.path=$csv" \
-    "-DargLine=-Xlog:gc*,safepoint:file=$gc:uptimemillis,level,tags" \
-    -Dtest=MixedHttpWorkloadLab test >"$log" 2>&1; then
+    "-DargLine=-Xlog:gc*,safepoint:file=target/http-load-lab/$id-correlated-jvm.log:uptimemillis,level,tags" \
+    -Dtest=MixedHttpWorkloadLab test) >"$log" 2>&1; then
   grep -E 'MIXED_HTTP_LAB|Tests run:|BUILD FAILURE|ERROR' "$log" | tail -n 70 || true
   echo 'STOP: isolated stage failed. Full evidence kept.' >&2
   exit 1
