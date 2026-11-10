@@ -56,6 +56,9 @@ payment:
           enabled: ${PAYMENT_KAFKA_LAG_MONITOR_ENABLED:false}
           interval-ms: ${PAYMENT_KAFKA_LAG_MONITOR_INTERVAL_MS:30000}
           maximum-age-ms: ${PAYMENT_KAFKA_LAG_MONITOR_MAXIMUM_AGE_MS:120000}
+      dispatch:
+        enabled: ${PAYMENT_KAFKA_DISPATCH_ENABLED:false}
+        interval-ms: ${PAYMENT_KAFKA_DISPATCH_INTERVAL_MS:1000}
 
 management:
   endpoints:
