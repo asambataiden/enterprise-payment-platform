@@ -205,6 +205,20 @@ must be explicitly invoked. A green Java/Security CI build validates
 compilation/regression, **not** the opt-in load test's results.
 See [learning chapter 49](docs/learning/49-concurrent-authenticated-http-load-lab.md).
 
+## Opt-in bounded mixed HTTP read/write experiment
+
+```bash
+bash ops/benchmarks/http/run-mixed-local.sh
+```
+
+This separate laboratory runs 300 paced authenticated HTTP requests
+(80% GET, 20% simulated-payment creation POST) against loopback Spring
+Boot and disposable PostgreSQL 17. It captures read/write p50/p95/p99,
+HTTP status distribution, and sampled HikariCP / PostgreSQL waits.
+It is intentionally excluded from ordinary CI test execution; local
+execution is required before reporting any measurements.
+See [Chapter 51](docs/learning/51-bounded-mixed-http-load-and-db-telemetry.md).
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
