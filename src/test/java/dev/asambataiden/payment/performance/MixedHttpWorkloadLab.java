@@ -40,13 +40,22 @@ import static org.junit.jupiter.api.Assertions.*;
 @Import(MixedHttpWorkloadLab.TrustedIssuer.class)
 class MixedHttpWorkloadLab {
     private static final int RATE = Integer.getInteger("mixed.lab.rate", 25);
-    // Fixed 12-second offered-load window. Strict allowlist prevents accidental stress tests.
-    private static final int REQUESTS = RATE * 12;
+    // Legacy tests remain 12 seconds by default; sustained stages are explicit.
+    private static final int DURATION_SECONDS =
+            Integer.getInteger("mixed.lab.duration.seconds", 12);
+    private static final int REQUESTS = RATE * DURATION_SECONDS;
     private static final int CONCURRENCY = 8;
     private static final int MAX_IN_FLIGHT = 32;
     static {
         if (RATE != 25 && RATE != 50 && RATE != 100) {
             throw new IllegalArgumentException("mixed.lab.rate must be 25, 50, or 100");
+        }
+        if (DURATION_SECONDS != 12 && DURATION_SECONDS != 30 && DURATION_SECONDS != 60) {
+            throw new IllegalArgumentException(
+                    "mixed.lab.duration.seconds must be 12, 30, or 60");
+        }
+        if (REQUESTS > 6000) {
+            throw new IllegalArgumentException("Safety cap: at most 6000 measured requests");
         }
     }
     private static final String ISSUER = "https://mixed-load.test.invalid";
@@ -249,15 +258,18 @@ class MixedHttpWorkloadLab {
                         avgActive, avgIdle, pendingSamples,
                         memory.getHeapMemoryUsage().getUsed() / (1024.0 * 1024.0),
                         threading.getThreadCount(), gcCountEnd - gcCountStart, cpuSeconds);
-                System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB rate=%d total=%d elapsed_sec=%.3f"
+                System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB rate=%d duration_target_sec=%d total=%d elapsed_sec=%.3f"
                         + " completed_rps=%.2f pool_samples=%d max_active=%d max_pending=%d"
                         + " max_db_waiting=%d monitor_failures=%d max_outstanding=%d max_schedule_lag_ms=%.3f%n",
-                        RATE, results.size(), elapsed, results.size() / elapsed,
+                        RATE, DURATION_SECONDS, results.size(), elapsed, results.size() / elapsed,
                         captured.size(), maxActive, maxPending, maxDbWait, samplingFailures.get(),
                         maxBacklog.get(), maxScheduleLagNs / 1e6);
                 assertEquals(REQUESTS, results.size());
                 assertEquals(0, wrong, "Unexpected status: workload gate failed");
-                assertTrue(captured.size() >= 5, "No meaningful DB/pool metrics captured");
+                // At 250-ms sampling, require most expected samples. Do not
+                // silently accept missing telemetry on a longer stage.
+                assertTrue(captured.size() >= DURATION_SECONDS * 3,
+                        "Pool/DB sampling coverage too low for this duration");
                 assertEquals(0, samplingFailures.get(), "DB monitor could not sample");
                 assertTrue(maxActive <= 4 && maxActive >= 0);
             } finally { sampler.cancel(true); }
