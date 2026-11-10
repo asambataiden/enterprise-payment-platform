@@ -98,6 +98,14 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — Verified in-stage G1 pause timeline
+
+[Chapter 73: 12 observed G1 pauses, 36 measured-stage log lines and no concurrent >50-ms HTTP requests](73-verified-g1-pause-timeline-and-nonrecurring-latency-spikes.md)
+documents the 69 startup/36 measured/0 post-stage event
+classification, actual young-GC durations, why the original
+intermittent HTTP incident is still unexplained, and an
+offline per-pause summary parser awaiting local validation.
+
 ## Milestone 22 — Verified JVM evidence and phase-aware interpretation
 
 [Chapter 72: successfully captured forked JVM evidence and distinguished startup from measured events](72-verified-jvm-diagnostics-and-phase-aware-analysis.md)
