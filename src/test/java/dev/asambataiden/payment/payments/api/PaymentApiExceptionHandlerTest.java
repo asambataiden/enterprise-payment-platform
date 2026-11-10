@@ -58,6 +58,23 @@ class PaymentApiExceptionHandlerTest {
     }
 
     @Test
+    void databasePoolExhaustionAndTransactionConnectionFailuresReturnSafe503() {
+        for (Exception failure : java.util.List.of(
+                new org.springframework.jdbc.CannotGetJdbcConnectionException(
+                        "jdbc:postgresql://private-host/db password=secret",
+                        new java.sql.SQLException("connection pool exhausted")),
+                new org.springframework.transaction.CannotCreateTransactionException(
+                        "HikariPool-1 connection timeout: token=private",
+                        new java.sql.SQLException("connection pool exhausted")))) {
+            var result = handler.databaseUnavailable(failure);
+            assertEquals(HttpStatus.SERVICE_UNAVAILABLE, result.getStatusCode());
+            assertEquals("SERVICE_UNAVAILABLE", result.getBody().getProperties().get("code"));
+            assertEquals(Boolean.TRUE, result.getBody().getProperties().get("retryable"));
+            assertEquals("A required service is temporarily unavailable.", result.getBody().getDetail());
+        }
+    }
+
+    @Test
     void unexpectedFailureReturnsSanitized500WithoutInternals() {
         var result = handler.unexpected(new IllegalStateException("SQL password=secret"));
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, result.getStatusCode());
