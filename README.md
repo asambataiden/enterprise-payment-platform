@@ -219,6 +219,24 @@ It is intentionally excluded from ordinary CI test execution; local
 execution is required before reporting any measurements.
 See [Chapter 51](docs/learning/51-bounded-mixed-http-load-and-db-telemetry.md).
 
+## Controlled 25/50/100 RPS capacity progression (opt-in)
+
+The mixed HTTP lab now supports an allowlisted 12-second **25, 50,
+100 requests/second** progression, 80% GET / 20% POST. Each rate runs
+with a fresh disposable PostgreSQL environment and aborts the ladder
+on unexpected responses, generator overload, or monitoring failure.
+The 8-worker client has a fixed 32-request in-flight ceiling and
+records schedule lag, per-operation latency, connection-pool pressure
+and PostgreSQL waits.
+
+```bash
+bash ops/benchmarks/http/run-rate-ladder.sh
+```
+
+The ladder is **not** part of ordinary Java CI and has no measured
+results yet. See [Chapter 53](docs/learning/53-controlled-http-rate-ladder.md).
+These brief local stages cannot establish production capacity.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
