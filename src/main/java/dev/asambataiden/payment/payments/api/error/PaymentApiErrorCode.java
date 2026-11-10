@@ -12,7 +12,11 @@ public enum PaymentApiErrorCode {
     TRANSITION_CONFLICT("PAYMENT_TRANSITION_CONFLICT", "transition-conflict"),
     VALIDATION_FAILED("PAYMENT_VALIDATION_FAILED", "validation-failed"),
     MERCHANT_IDENTITY_REQUIRED("MERCHANT_IDENTITY_REQUIRED", "merchant-identity-required"),
-    BAD_REQUEST("PAYMENT_BAD_REQUEST", "bad-request");
+    BAD_REQUEST("PAYMENT_BAD_REQUEST", "bad-request"),
+    INTERNAL_ERROR("INTERNAL_ERROR", "internal-error"),
+    SERVICE_UNAVAILABLE("SERVICE_UNAVAILABLE", "service-unavailable"),
+    AUTHENTICATION_REQUIRED("AUTHENTICATION_REQUIRED", "authentication-required"),
+    ACCESS_DENIED("ACCESS_DENIED", "access-denied");
 
     private static final String PREFIX = "urn:problem:enterprise-payment-platform:";
     private final String value;
