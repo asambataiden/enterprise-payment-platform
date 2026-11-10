@@ -192,18 +192,23 @@ class MixedHttpWorkloadLab {
                 double elapsed = (System.nanoTime() - start) / 1e9;
                 report("measured", results);
                 long wrong = results.stream().filter(s -> s.status() != (s.write() ? 201 : 200)).count();
-                int maxActive = readings.stream().mapToInt(PoolSample::active).max().orElse(-1);
-                int maxPending = readings.stream().mapToInt(PoolSample::pending).max().orElse(-1);
-                int maxDbWait = readings.stream().mapToInt(PoolSample::dbWaiting).max().orElse(-1);
+                // Take a stable snapshot while the periodic sampler may still run.
+                List<PoolSample> captured;
+                synchronized (readings) {
+                    captured = List.copyOf(readings);
+                }
+                int maxActive = captured.stream().mapToInt(PoolSample::active).max().orElse(-1);
+                int maxPending = captured.stream().mapToInt(PoolSample::pending).max().orElse(-1);
+                int maxDbWait = captured.stream().mapToInt(PoolSample::dbWaiting).max().orElse(-1);
                 System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB rate=%d total=%d elapsed_sec=%.3f"
                         + " completed_rps=%.2f pool_samples=%d max_active=%d max_pending=%d"
                         + " max_db_waiting=%d monitor_failures=%d max_outstanding=%d max_schedule_lag_ms=%.3f%n",
                         RATE, results.size(), elapsed, results.size() / elapsed,
-                        readings.size(), maxActive, maxPending, maxDbWait, samplingFailures.get(),
+                        captured.size(), maxActive, maxPending, maxDbWait, samplingFailures.get(),
                         maxBacklog.get(), maxScheduleLagNs / 1e6);
                 assertEquals(REQUESTS, results.size());
                 assertEquals(0, wrong, "Unexpected status: workload gate failed");
-                assertTrue(readings.size() >= 5, "No meaningful DB/pool metrics captured");
+                assertTrue(captured.size() >= 5, "No meaningful DB/pool metrics captured");
                 assertEquals(0, samplingFailures.get(), "DB monitor could not sample");
                 assertTrue(maxActive <= 4 && maxActive >= 0);
             } finally { sampler.cancel(true); }
