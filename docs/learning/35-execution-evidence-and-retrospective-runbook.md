@@ -510,3 +510,32 @@ Surefire no-matching-tests failure for the selected IT class.
 Verify the actual executed case in the Failsafe summary before
 marking it complete. The prior full application regression is the
 baseline, not evidence that this new test passed.
+
+
+### November 10, 2026 — in-process full lifecycle acceptance verified
+
+Developer pulled `feat/payment-ledger` through `010ca98` and ran:
+
+```bash
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" \
+  -Dit.test=SimulatedPaymentLifecycleAcceptanceIT \
+  -Dtest=NoSuchTest \
+  -Dsurefire.failIfNoSpecifiedTests=false verify
+```
+
+**Observed:** Failsafe `SimulatedPaymentLifecycleAcceptanceIT`:
+**1 passed, 0 failed, 0 errors, 0 skipped**.
+PostgreSQL 17.11 Testcontainers started; Flyway validated and
+applied all eight migrations. Spring context startup 2.165 seconds;
+the test class 3.948 seconds; total Maven runtime **6.154 seconds**;
+`BUILD SUCCESS`, finished **2026-11-10 05:20:00 +01:00**.
+
+**What passed:** a single in-process simulated Create → Authorize →
+Capture → Refund → Ledger reversal → Outbox dispatch → Inbox dedup →
+Projection scenario, with replay safeguards and net-zero balances.
+
+**Scope boundary:** no Kafka network hop, external service, settlement
+or real funds movement; one targeted IT does not replace full-suite
+verification. The earlier full `clean verify` predates the new
+refund and acceptance tests. This increment has a GO acceptance
+decision, with a fresh full regression required before merge.
