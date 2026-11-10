@@ -66,7 +66,12 @@ class MixedHttpWorkloadLab {
     @Autowired PaymentService payments;
 
     record Sample(boolean write, int status, double ms) {}
-    record PoolSample(int active, int pending, int total, int dbWaiting) {}
+    record PoolSample(int active, int idle, int pending, int total, int dbWaiting) {}
+    record MerchantTarget(String merchant, String token, List<URI> readUrls) {}
+
+    private static final int MERCHANTS = 4;
+    private static final int RECORDS_PER_MERCHANT = 8;
+    private static final long CPU_UNAVAILABLE = -1L;
 
     private static KeyPair newKey() {
         try {
@@ -90,12 +95,18 @@ class MixedHttpWorkloadLab {
         sorted.sort(Comparator.naturalOrder());
         return sorted.get(Math.max(0, (int) Math.ceil(sorted.size() * pct) - 1));
     }
-    private Sample send(HttpClient http, URI readUrl, String token, String runId, int n)
+    private Sample send(HttpClient http, List<MerchantTarget> merchants, String runId, int n)
             throws Exception {
         boolean write = n % 5 == 0; // 80 percent GET, 20 percent POST
-        var target = write ? URI.create("http://127.0.0.1:" + port + "/api/v1/payments") : readUrl;
+        int requestNumber = Math.abs(n);
+        // Deterministic tenant skew: 70% hot merchant, 10% each other.
+        int merchantIndex = (requestNumber % 10 < 7) ? 0
+                : 1 + requestNumber % 3;
+        var merchant = merchants.get(merchantIndex);
+        var target = write ? URI.create("http://127.0.0.1:" + port + "/api/v1/payments")
+                : merchant.readUrls().get((requestNumber / 10) % RECORDS_PER_MERCHANT);
         var request = HttpRequest.newBuilder(target).timeout(Duration.ofSeconds(5))
-                .header("Authorization", "Bearer " + token);
+                .header("Authorization", "Bearer " + merchant.token());
         if (write) {
             request.header("Idempotency-Key", "mixed-" + runId + "-" + n)
                    .header("Content-Type", "application/json")
@@ -124,19 +135,28 @@ class MixedHttpWorkloadLab {
 
     @Test
     void boundedPacedReadWriteHttpWorkload() throws Exception {
-        String merchant = "mixed-" + UUID.randomUUID();
         String runId = UUID.randomUUID().toString();
-        var seed = payments.create(merchant, "seed-" + runId,
-                new CreatePaymentCommand(new BigDecimal("1.25"), "EUR", "seed"));
-        URI readUrl = URI.create("http://127.0.0.1:" + port + "/api/v1/payments/" + seed.id());
-        String token = bearer(merchant);
+        List<MerchantTarget> merchants = new ArrayList<>();
+        for (int m = 0; m < MERCHANTS; m++) {
+            String merchant = "mixed-" + runId + "-" + m;
+            List<URI> urls = new ArrayList<>();
+            for (int index = 0; index < RECORDS_PER_MERCHANT; index++) {
+                var seed = payments.create(merchant, "seed-" + runId + "-" + index,
+                        new CreatePaymentCommand(new BigDecimal("1.25"),
+                                "EUR", "seed-" + index));
+                urls.add(URI.create("http://127.0.0.1:" + port
+                        + "/api/v1/payments/" + seed.id()));
+            }
+            merchants.add(new MerchantTarget(merchant, bearer(merchant), List.copyOf(urls)));
+        }
+        assertEquals(MERCHANTS, merchants.size());
         assertEquals(4, pool.getMaximumPoolSize());
 
         try (var http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
              var workers = Executors.newFixedThreadPool(CONCURRENCY);
              var monitoring = Executors.newSingleThreadScheduledExecutor()) {
             var warmup = new ArrayList<Sample>();
-            for (int n = 1; n <= 20; n++) warmup.add(send(http, readUrl, token, runId, -n));
+            for (int n = 1; n <= 20; n++) warmup.add(send(http, merchants, runId, -n));
             report("warmup", warmup);
             assertTrue(warmup.stream().allMatch(s -> s.status() == (s.write() ? 201 : 200)));
 
@@ -153,10 +173,21 @@ class MixedHttpWorkloadLab {
                     rs.next();
                     var mx = pool.getHikariPoolMXBean();
                     readings.add(new PoolSample(mx.getActiveConnections(),
-                            mx.getThreadsAwaitingConnection(), mx.getTotalConnections(), rs.getInt(1)));
+                            mx.getIdleConnections(), mx.getThreadsAwaitingConnection(),
+                            mx.getTotalConnections(), rs.getInt(1)));
                 } catch (Exception ex) { samplingFailures.incrementAndGet(); }
             }, 0, 250, TimeUnit.MILLISECONDS);
 
+            var memory = java.lang.management.ManagementFactory.getMemoryMXBean();
+            var threading = java.lang.management.ManagementFactory.getThreadMXBean();
+            var collectors = java.lang.management.ManagementFactory.getGarbageCollectorMXBeans();
+            var os = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+            var extendedOs = (os instanceof com.sun.management.OperatingSystemMXBean bean)
+                    ? bean : null;
+            long cpuStart = extendedOs == null ? CPU_UNAVAILABLE
+                    : extendedOs.getProcessCpuTime();
+            long gcCountStart = collectors.stream().mapToLong(bean ->
+                    Math.max(0, bean.getCollectionCount())).sum();
             long start = System.nanoTime();
             var permits = new java.util.concurrent.Semaphore(MAX_IN_FLIGHT);
             var maxBacklog = new java.util.concurrent.atomic.AtomicInteger();
@@ -177,7 +208,7 @@ class MixedHttpWorkloadLab {
                     try {
                         futures.add(workers.submit(() -> {
                             try {
-                                return send(http, readUrl, token, runId, sequence);
+                                return send(http, merchants, runId, sequence);
                             } finally {
                                 permits.release();
                             }
@@ -198,8 +229,26 @@ class MixedHttpWorkloadLab {
                     captured = List.copyOf(readings);
                 }
                 int maxActive = captured.stream().mapToInt(PoolSample::active).max().orElse(-1);
+                double avgActive = captured.stream().mapToInt(PoolSample::active).average().orElse(-1);
+                double avgIdle = captured.stream().mapToInt(PoolSample::idle).average().orElse(-1);
+                long pendingSamples = captured.stream().filter(s -> s.pending() > 0).count();
                 int maxPending = captured.stream().mapToInt(PoolSample::pending).max().orElse(-1);
                 int maxDbWait = captured.stream().mapToInt(PoolSample::dbWaiting).max().orElse(-1);
+                long gcCountEnd = collectors.stream().mapToLong(bean ->
+                        Math.max(0, bean.getCollectionCount())).sum();
+                long cpuEnd = extendedOs == null ? CPU_UNAVAILABLE
+                        : extendedOs.getProcessCpuTime();
+                double cpuSeconds = cpuEnd < 0 || cpuStart < 0 ? Double.NaN
+                        : (cpuEnd - cpuStart) / 1e9;
+                System.out.printf(Locale.ROOT,
+                        "MIXED_HTTP_LAB telemetry merchants=%d records_per_merchant=%d"
+                        + " avg_active=%.3f avg_idle=%.3f pending_samples=%d"
+                        + " heap_used_mib=%.2f threads=%d gc_collections=%d"
+                        + " process_cpu_sec=%.3f%n",
+                        MERCHANTS, RECORDS_PER_MERCHANT,
+                        avgActive, avgIdle, pendingSamples,
+                        memory.getHeapMemoryUsage().getUsed() / (1024.0 * 1024.0),
+                        threading.getThreadCount(), gcCountEnd - gcCountStart, cpuSeconds);
                 System.out.printf(Locale.ROOT, "MIXED_HTTP_LAB rate=%d total=%d elapsed_sec=%.3f"
                         + " completed_rps=%.2f pool_samples=%d max_active=%d max_pending=%d"
                         + " max_db_waiting=%d monitor_failures=%d max_outstanding=%d max_schedule_lag_ms=%.3f%n",
