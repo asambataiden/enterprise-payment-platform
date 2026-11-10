@@ -1,9 +1,9 @@
 # Chapter 37 — Kafka Idempotent Producer: Senior Engineering Reassessment
 
-**Milestone 06.7AC — REWORK.** Original lab run on November 9, 2026:
+**Milestone 06.7AC — corrected tests verified November 10, 2026; fresh-broker ACL confirmation pending.** Original lab run on November 9, 2026:
 12 E2E tests executed, 11 passed and 1 failed. A *successful producer
 send* disproved the original assertion that cluster `IdempotentWrite` is
-always required. Corrected code is committed but **has not been rerun**.
+always required. Corrected code was subsequently rerun successfully: 12 tests, zero failures, errors or skips, at 04:38:28 CET on November 10, 2026. This rerun reused an existing broker with the obsolete IdempotentWrite ACL, so it does not independently prove the clean provisioned ACL state.
 
 **Previously verified checkpoint:** 152 application tests plus 9 broker E2E
 tests from milestone 06.7AB. The latest uploaded standard application
@@ -208,3 +208,30 @@ Kafka; the consumer has separate topic Read and group Read.
 A: Cluster `IdempotentWrite` was removed as unnecessary for this Kafka
 version. The negative tests now assert real topic-level denial, and
 the documented historical failure is retained for traceability.
+
+## 11. Focused corrective rerun — November 10, 2026
+
+The developer fast-forwarded `feat/payment-ledger` from `7984d2c`
+to `1d5fa35` and confirmed the obsolete assertion name was absent.
+The opt-in secured Kafka suite then compiled 37 test source files and passed
+**12 tests (0 failures, 0 errors, 0 skipped)**; Maven reported
+`BUILD SUCCESS` at **04:38:28 CET** with total time 3.482 seconds.
+
+The four groups were: principal authorization (4), secured broker
+Describe (2), negative mTLS/ACL (3), and idempotent producer (3).
+The Describe-only producer's attempted Write to the stream was rejected;
+Kafka also logged a cluster authorization error in the same negative
+scenario and a non-transactional-producer shutdown warning. Because the
+assertion passed, classify the scenario as an expected denial, but keep
+any unexpected close-time warning for later client-library assessment.
+
+**Verification boundary:** This was a focused rerun using the existing
+broker and previously generated credentials. The previous broker had been
+provisioned with a redundant `User:CN=lab-idempotent-producer` cluster
+`IdempotentWrite` ACL, which may still have existed. This is **not**
+evidence that a fresh cluster is free of the old grant. The corrected
+provisioning script does not add it. For workflow efficiency, leave
+fresh-broker ACL verification as a separate hardening task instead of
+blocking further core payment development. The last uploaded application
+`clean verify` still requires separate investigation of duplicate
+Flyway V1 build resources.
