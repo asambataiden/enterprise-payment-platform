@@ -302,6 +302,8 @@ class MixedHttpWorkloadLab {
             long jvmUptimeAtStageStartMs =
                     java.lang.management.ManagementFactory.getRuntimeMXBean().getUptime();
             System.out.printf(Locale.ROOT,
+                    "MIXED_HTTP_LAB test_jvm_pid=%d%n", ProcessHandle.current().pid());
+            System.out.printf(Locale.ROOT,
                     "MIXED_HTTP_LAB stage_start_jvm_uptime_ms=%d"
                     + " timing_basis=monotonic_client_offsets%n",
                     jvmUptimeAtStageStartMs);
