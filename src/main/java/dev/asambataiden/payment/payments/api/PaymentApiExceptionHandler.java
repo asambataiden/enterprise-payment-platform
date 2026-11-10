@@ -48,6 +48,7 @@ public class PaymentApiExceptionHandler {
                 status.value() == 404 ? "Not Found" : "Bad Request");
         detail.setDetail(exception.getReason());
         var code = status.value() == 403 ? PaymentApiErrorCode.MERCHANT_IDENTITY_REQUIRED
+                : status.value() == 409 ? PaymentApiErrorCode.TRANSITION_CONFLICT
                 : PaymentApiErrorCode.BAD_REQUEST;
         detail.setType(code.type());
         detail.setProperty("code", code.value());
