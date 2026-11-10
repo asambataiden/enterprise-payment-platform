@@ -188,6 +188,23 @@ See [Chapter 48](docs/learning/48-hikari-pool-saturation-and-recovery.md).
 This is a deterministic availability test, **not** an HTTP load benchmark
 or production pool-capacity estimate.
 
+## Opt-in real HTTP concurrency laboratory
+
+A bounded real-HTTP lab tests signed-JWT merchant reads with a
+loopback Spring Boot server and PostgreSQL 17 Testcontainers. It
+compares warm-up, deliberate two-slot Hikari pool exhaustion, and
+recovery, recording p50/p95/p99 client-side request latency and
+HTTP status counts. No external URL or live payment processor is used.
+
+```bash
+bash ops/benchmarks/http/run-local.sh
+```
+
+This experiment is excluded from regular Maven test discovery and
+must be explicitly invoked. A green Java/Security CI build validates
+compilation/regression, **not** the opt-in load test's results.
+See [learning chapter 49](docs/learning/49-concurrent-authenticated-http-load-lab.md).
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
