@@ -1,5 +1,6 @@
 package dev.asambataiden.payment.payments.messaging.kafka.producer;
 import dev.asambataiden.payment.payments.outbox.PaymentOutboxDispatcher;
+import dev.asambataiden.payment.payments.outbox.SupervisedPaymentOutboxWorker;
 
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
 import dev.asambataiden.payment.payments.application.PaymentService;
@@ -59,8 +60,18 @@ class KafkaOutboxEndToEndIT {
         try {
             var adapter = new KafkaPaymentEventPublisher(new KafkaTemplate<>(factory), topic);
             var dispatcher = new PaymentOutboxDispatcher(jdbc, transactionManager, adapter);
-            assertTrue(dispatcher.dispatchOne());
-            assertFalse(dispatcher.dispatchOne());
+            var worker = new SupervisedPaymentOutboxWorker(dispatcher, 25);
+            var relay = new KafkaOutboxSchedulingConfiguration
+                    .KafkaOutboxScheduledRelay(worker);
+
+            relay.poll();
+
+            assertEquals(1L, worker.claimedCount());
+            assertEquals(0L, worker.failedCycleCount());
+
+            // An idle cycle must not publish the event again.
+            relay.poll();
+            assertEquals(1L, worker.claimedCount());
             assertEquals(1L, jdbc.queryForObject("""
                     SELECT COUNT(*) FROM payment_outbox
                     WHERE merchant_id = ? AND id = ? AND dispatched_at IS NOT NULL
