@@ -70,6 +70,24 @@ class PaymentControllerWebTest {
     }
 
     @Test
+    void exhaustedPoolReturnsSanitized503FromAuthenticatedApi() throws Exception {
+        UUID payment = UUID.randomUUID();
+        when(service.get("merchant-a", payment)).thenThrow(
+                new org.springframework.transaction.CannotCreateTransactionException(
+                        "Hikari pool timeout password=hidden",
+                        new java.sql.SQLException("jdbc:postgresql://internal-db/private")));
+        mvc.perform(get("/api/v1/payments/{id}", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:read"))))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("SERVICE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.retryable").value(true))
+                .andExpect(jsonPath("$.detail").value("A required service is temporarily unavailable."))
+                .andExpect(jsonPath("$.correlationId").exists());
+    }
+
+    @Test
     void malformedPaymentJsonRemains400Not500() throws Exception {
         mvc.perform(post("/api/v1/payments")
                         .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
