@@ -31,6 +31,8 @@ public class PaymentSecurityConfig {
                             .hasAuthority("SCOPE_payments:metrics")
                         .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**")
                             .hasAuthority("SCOPE_payments:docs")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/*/simulated-transitions")
+                            .hasAuthority("SCOPE_payments:simulate")
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments")
                             .hasAuthority("SCOPE_payments:write")
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/*")
