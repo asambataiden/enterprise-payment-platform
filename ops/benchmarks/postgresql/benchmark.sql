@@ -29,25 +29,25 @@ SELECT md5('payment:' || g)::uuid,
        ((g % 99999) + 1)::numeric / 100,
        'EUR',
        'order-' || (g % 200),
-       CASE WHEN g % 10 < 7 THEN 'RECEIVED'
-            WHEN g % 10 < 9 THEN 'AUTHORIZED' ELSE 'CAPTURED' END,
+       CASE WHEN g % 13 < 9 THEN 'RECEIVED'
+            WHEN g % 13 < 12 THEN 'AUTHORIZED' ELSE 'CAPTURED' END,
        timestamptz '2026-01-01 00:00:00+00' + (g * interval '1 second')
 FROM generate_series(1, 100000) AS g;
 
--- 100,000 outbox history events: 1,000 distinct payment IDs, 100 events each.
+-- 100,000 outbox history events: 100 distinct payment IDs, 1,000 events each (100 per merchant).
 -- The synthetic events are for query performance only; they are deliberately
 -- not financially meaningful, and no real ledger or settlement occurs.
 INSERT INTO bench_outbox
 SELECT md5('event:' || g)::uuid,
        'merchant-' || lpad(((g - 1) % 10)::text, 3, '0'),
-       md5('history-payment:' || (((g - 1) % 10000) / 10))::uuid,
+       md5('history-payment:' || (((g - 1) % 1000) / 10))::uuid,
        'AUTHORIZED',
        timestamptz '2026-01-01 00:00:00+00' + (g * interval '1 second'),
        NULL
 FROM generate_series(1, 100000) AS g;
 -- Choose a history payment with 100 records for one merchant. The expression
--- above assigns 10 merchants to each block of 10 events; all 100 events
--- for the selected history payment use the same tenant over each 10000 cycle.
+-- above assigns 10 merchants to each block of 10 events; 100 records
+-- for the selected payment and tenant span the repeated cycles.
 ANALYZE bench_payments;
 ANALYZE bench_outbox;
 \echo '========== BEFORE: payment newest-first =========='
