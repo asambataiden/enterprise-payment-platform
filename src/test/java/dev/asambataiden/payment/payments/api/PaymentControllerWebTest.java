@@ -1,6 +1,11 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
+import dev.asambataiden.payment.payments.domain.PaymentState;
+import dev.asambataiden.payment.payments.application.PaymentResult;
+import java.math.BigDecimal;
+import java.time.Instant;
 import dev.asambataiden.payment.shared.observability.CorrelationIdFilter;
 import dev.asambataiden.payment.shared.security.PaymentSecurityConfig;
 import java.util.UUID;
@@ -33,6 +38,82 @@ class PaymentControllerWebTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private SimulatedPaymentTransitionService transitions;
+
+    @Test
+    void simulationScopeCanAdvanceOwnedPayment() throws Exception {
+        UUID payment = UUID.randomUUID();
+        UUID event = UUID.randomUUID();
+        when(service.get("merchant-a", payment)).thenReturn(
+                new PaymentResult(payment, new BigDecimal("12.50"), "EUR",
+                        "order-simulated", "AUTHORIZED", Instant.parse("2026-11-10T00:00:00Z")));
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:simulate")))
+                        .header("Event-Id", event.toString())
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"AUTHORIZED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("AUTHORIZED"));
+        org.mockito.Mockito.verify(transitions).advance(
+                "merchant-a", payment, event, PaymentState.AUTHORIZED);
+    }
+
+    @Test
+    void ordinaryWriteScopeCannotSimulateLifecycle() throws Exception {
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", UUID.randomUUID())
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:write")))
+                        .header("Event-Id", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"CAPTURED\"}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(transitions);
+    }
+
+    @Test
+    void unauthenticatedSimulatedTransitionIsRejected() throws Exception {
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", UUID.randomUUID())
+                        .header("Event-Id", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"AUTHORIZED\"}"))
+                .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(transitions);
+    }
+
+    @Test
+    void invalidTransitionReturnsStableConflictCode() throws Exception {
+        UUID payment = UUID.randomUUID();
+        UUID event = UUID.randomUUID();
+        org.mockito.Mockito.when(transitions.advance("merchant-a", payment, event, PaymentState.CAPTURED))
+                .thenThrow(new IllegalStateException("Internal state must not leak"));
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", payment)
+                        .with(jwt().jwt(t -> t.claim("merchant_id", "merchant-a"))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                        "SCOPE_payments:simulate")))
+                        .header("Event-Id", event)
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"CAPTURED\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_TRANSITION_CONFLICT"))
+                .andExpect(jsonPath("$.detail").value("Simulated payment transition rejected"));
+    }
+
+    @Test
+    void simulationScopeWithoutMerchantIdentityIsRejected() throws Exception {
+        mvc.perform(post("/api/v1/payments/{id}/simulated-transitions", UUID.randomUUID())
+                        .with(jwt().authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                                "SCOPE_payments:simulate")))
+                        .header("Event-Id", UUID.randomUUID())
+                        .contentType("application/json")
+                        .content("{\"targetState\":\"AUTHORIZED\"}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(transitions);
+    }
 
     @Test
     void responseIncludesServerGeneratedCorrelationId() throws Exception {
