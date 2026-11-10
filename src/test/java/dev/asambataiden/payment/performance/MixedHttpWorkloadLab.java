@@ -6,6 +6,9 @@ import com.nimbusds.jwt.*;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.asambataiden.payment.payments.application.*;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.net.*;
 import java.net.http.*;
 import java.security.*;
@@ -44,6 +47,8 @@ class MixedHttpWorkloadLab {
     private static final int DURATION_SECONDS =
             Integer.getInteger("mixed.lab.duration.seconds", 12);
     private static final int REQUESTS = RATE * DURATION_SECONDS;
+    private static final int RECORDS_PER_MERCHANT =
+            Integer.getInteger("mixed.lab.seed.records", 8);
     private static final int CONCURRENCY = 8;
     private static final int MAX_IN_FLIGHT = 32;
     static {
@@ -53,6 +58,9 @@ class MixedHttpWorkloadLab {
         if (DURATION_SECONDS != 12 && DURATION_SECONDS != 30 && DURATION_SECONDS != 60) {
             throw new IllegalArgumentException(
                     "mixed.lab.duration.seconds must be 12, 30, or 60");
+        }
+        if (RECORDS_PER_MERCHANT != 8 && RECORDS_PER_MERCHANT != 128) {
+            throw new IllegalArgumentException("mixed.lab.seed.records must be 8 or 128");
         }
         if (REQUESTS > 6000) {
             throw new IllegalArgumentException("Safety cap: at most 6000 measured requests");
@@ -74,12 +82,11 @@ class MixedHttpWorkloadLab {
     @Autowired HikariDataSource pool;
     @Autowired PaymentService payments;
 
-    record Sample(boolean write, int status, double ms, int merchantIndex, int window) {}
+    record Sample(boolean write, int status, double ms, int merchantIndex, int window, int sequence) {}
     record PoolSample(int active, int idle, int pending, int total, int dbWaiting) {}
     record MerchantTarget(String merchant, String token, List<URI> readUrls) {}
 
     private static final int MERCHANTS = 4;
-    private static final int RECORDS_PER_MERCHANT = 8;
     private static final long CPU_UNAVAILABLE = -1L;
 
     private static KeyPair newKey() {
@@ -127,7 +134,7 @@ class MixedHttpWorkloadLab {
         // completion time, so a slow response cannot move to another bucket.
         int window = n < 0 ? -1 : (n - 1) / (RATE * 10);
         return new Sample(write, response.statusCode(),
-                (System.nanoTime() - begin) / 1e6, merchantIndex, window);
+                (System.nanoTime() - begin) / 1e6, merchantIndex, window, n);
     }
     private static void report(String phase, List<Sample> results) {
         for (boolean write : new boolean[]{false, true}) {
@@ -198,6 +205,33 @@ class MixedHttpWorkloadLab {
             }
         }
         assertEquals(samples.size(), sumMerchantSamples, "Every sample must have one tenant");
+    }
+
+    /**
+     * Optional bounded, synthetic-only evidence export. Never write bearer
+     * tokens, merchant identifiers, payment IDs or request bodies.
+     * The script supplies an output path in the test target directory.
+     */
+    private static void exportRawSamples(List<Sample> samples) throws Exception {
+        String configured = System.getProperty("mixed.lab.csv.path");
+        if (configured == null || configured.isBlank()) return;
+        Path expectedDirectory = Path.of("target", "http-load-lab").toAbsolutePath().normalize();
+        Path output = Path.of(configured).toAbsolutePath().normalize();
+        if (!output.startsWith(expectedDirectory) || !output.toString().endsWith(".csv")) {
+            throw new IllegalArgumentException("Raw CSV must be under target/http-load-lab and end with .csv");
+        }
+        Files.createDirectories(expectedDirectory);
+        try (var writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
+            writer.write("sequence,merchant_index,operation,http_status,latency_ms,window_start_second");
+            writer.newLine();
+            for (Sample s : samples) {
+                writer.write(String.format(Locale.ROOT, "%d,%d,%s,%d,%.6f,%d",
+                        s.sequence(), s.merchantIndex(), s.write() ? "POST" : "GET",
+                        s.status(), s.ms(), s.window() * 10));
+                writer.newLine();
+            }
+        }
+        System.out.printf("MIXED_HTTP_LAB csv_rows=%d raw_csv=%s%n", samples.size(), output);
     }
 
     @Test
@@ -290,6 +324,7 @@ class MixedHttpWorkloadLab {
                 double elapsed = (System.nanoTime() - start) / 1e9;
                 report("measured", results);
                 reportBreakdowns(results, elapsed);
+                exportRawSamples(results);
                 long wrong = results.stream().filter(s -> s.status() != (s.write() ? 201 : 200)).count();
                 // Take a stable snapshot while the periodic sampler may still run.
                 List<PoolSample> captured;
