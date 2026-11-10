@@ -5,6 +5,9 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.*;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.asambataiden.payment.payments.application.*;
+import jakarta.servlet.Filter;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.*;
     "payment.messaging.kafka.enabled=false",
     "payment.messaging.kafka.consumer.enabled=false"
 })
-@Import(MixedHttpWorkloadLab.TrustedIssuer.class)
+@Import({MixedHttpWorkloadLab.TrustedIssuer.class, MixedHttpWorkloadLab.RequestTimingConfig.class})
 class MixedHttpWorkloadLab {
     private static final int RATE = Integer.getInteger("mixed.lab.rate", 25);
     // Legacy tests remain 12 seconds by default; sustained stages are explicit.
@@ -78,6 +81,55 @@ class MixedHttpWorkloadLab {
             return decoder;
         }
     }
+    // Test-only in-JVM measurements. Never expose merchant identifiers or
+    // request bodies, and never register this filter in application runtime.
+    private static final ConcurrentMap<Integer, ServerTiming> SERVER_TIMINGS =
+            new ConcurrentHashMap<>();
+    private static volatile long measuredServerOriginNs;
+
+    record ServerTiming(double startOffsetMs, double elapsedMs) {}
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class RequestTimingConfig {
+        @Bean
+        FilterRegistrationBean<Filter> syntheticRequestTimingFilter() {
+            Filter filter = (request, response, chain) -> {
+                var httpRequest = (HttpServletRequest) request;
+                String marker = httpRequest.getHeader("X-Lab-Sequence");
+                if (marker == null) {
+                    chain.doFilter(request, response);
+                    return;
+                }
+                int sequence;
+                try {
+                    sequence = Integer.parseInt(marker);
+                } catch (NumberFormatException ex) {
+                    throw new jakarta.servlet.ServletException("Invalid synthetic sequence");
+                }
+                if (sequence < 1 || sequence > 6000 || measuredServerOriginNs == 0) {
+                    throw new jakarta.servlet.ServletException("Out-of-range synthetic sequence");
+                }
+                long startNs = System.nanoTime();
+                try {
+                    chain.doFilter(request, response);
+                } finally {
+                    long endNs = System.nanoTime();
+                    ServerTiming previous = SERVER_TIMINGS.putIfAbsent(sequence,
+                            new ServerTiming((startNs - measuredServerOriginNs) / 1e6,
+                                    (endNs - startNs) / 1e6));
+                    if (previous != null) {
+                        throw new jakarta.servlet.ServletException("Duplicate synthetic sequence");
+                    }
+                }
+            };
+            var registration = new FilterRegistrationBean<Filter>();
+            registration.setFilter(filter);
+            registration.addUrlPatterns("/api/v1/payments", "/api/v1/payments/*");
+            registration.setOrder(0);
+            return registration;
+        }
+    }
+
     @Value("${local.server.port}") int port;
     @Autowired HikariDataSource pool;
     @Autowired PaymentService payments;
@@ -124,6 +176,7 @@ class MixedHttpWorkloadLab {
                 : merchant.readUrls().get((requestNumber / 10) % RECORDS_PER_MERCHANT);
         var request = HttpRequest.newBuilder(target).timeout(Duration.ofSeconds(5))
                 .header("Authorization", "Bearer " + merchant.token());
+        if (n > 0) request.header("X-Lab-Sequence", Integer.toString(n));
         if (write) {
             request.header("Idempotency-Key", "mixed-" + runId + "-" + n)
                    .header("Content-Type", "application/json")
@@ -228,13 +281,20 @@ class MixedHttpWorkloadLab {
         Files.createDirectories(expectedDirectory);
         try (var writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
             writer.write("sequence,merchant_index,operation,http_status,latency_ms,window_start_second"
-                    + ",client_start_offset_ms,client_end_offset_ms");
+                    + ",client_start_offset_ms,client_end_offset_ms"
+                    + ",server_start_offset_ms,server_elapsed_ms");
             writer.newLine();
             for (Sample s : samples) {
-                writer.write(String.format(Locale.ROOT, "%d,%d,%s,%d,%.6f,%d,%.6f,%.6f",
+                ServerTiming server = SERVER_TIMINGS.get(s.sequence());
+                if (server == null) {
+                    throw new IllegalStateException("Missing server-side timing for synthetic request "
+                            + s.sequence());
+                }
+                writer.write(String.format(Locale.ROOT, "%d,%d,%s,%d,%.6f,%d,%.6f,%.6f,%.6f,%.6f",
                         s.sequence(), s.merchantIndex(), s.write() ? "POST" : "GET",
                         s.status(), s.ms(), s.window() * 10,
-                        s.clientStartOffsetMs(), s.clientEndOffsetMs()));
+                        s.clientStartOffsetMs(), s.clientEndOffsetMs(),
+                        server.startOffsetMs(), server.elapsedMs()));
                 writer.newLine();
             }
         }
@@ -296,7 +356,9 @@ class MixedHttpWorkloadLab {
                     : extendedOs.getProcessCpuTime();
             long gcCountStart = collectors.stream().mapToLong(bean ->
                     Math.max(0, bean.getCollectionCount())).sum();
+            SERVER_TIMINGS.clear();
             long start = System.nanoTime();
+            measuredServerOriginNs = start;
             // JVM unified logs use JVM uptime; capture uptime at the
             // same measurement boundary for approximate GC time alignment.
             long jvmUptimeAtStageStartMs =
@@ -339,6 +401,16 @@ class MixedHttpWorkloadLab {
                 var results = new ArrayList<Sample>();
                 for (var future : futures) results.add(future.get(10, TimeUnit.SECONDS));
                 double elapsed = (System.nanoTime() - start) / 1e9;
+                assertEquals(REQUESTS, SERVER_TIMINGS.size(),
+                        "Exactly one server-side timing per measured request");
+                for (Sample sample : results) {
+                    ServerTiming server = SERVER_TIMINGS.get(sample.sequence());
+                    assertNotNull(server, "Missing server-side timing");
+                    // Client timing includes HTTP transport and response handling.
+                    // Server filter measures only server request processing.
+                    assertTrue(Double.isFinite(server.elapsedMs()) && server.elapsedMs() >= 0);
+                    assertTrue(Double.isFinite(server.startOffsetMs()));
+                }
                 report("measured", results);
                 reportBreakdowns(results, elapsed);
                 exportRawSamples(results);
