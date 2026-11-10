@@ -1,6 +1,8 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.PaymentHistoryService;
+import dev.asambataiden.payment.payments.api.dto.PaymentHistoryResponse;
 import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
 import dev.asambataiden.payment.payments.domain.PaymentState;
 import dev.asambataiden.payment.payments.application.CreatePaymentCommand;
@@ -29,10 +31,13 @@ import org.springframework.http.HttpStatus;
 public class PaymentController {
     private final PaymentService service;
     private final SimulatedPaymentTransitionService transitions;
+    private final PaymentHistoryService history;
 
-    public PaymentController(PaymentService service, SimulatedPaymentTransitionService transitions) {
+    public PaymentController(PaymentService service, SimulatedPaymentTransitionService transitions,
+                             PaymentHistoryService history) {
         this.service = service;
         this.transitions = transitions;
+        this.history = history;
     }
 
     @Operation(summary = "Create or safely retry a simulated payment",
@@ -62,6 +67,17 @@ public class PaymentController {
     @GetMapping("/{id}")
     public PaymentResponse get(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return PaymentResponse.from(service.get(merchantId(jwt), id));
+    }
+
+    @Operation(summary = "Read bounded simulated transition history of an owned payment",
+            description = "Returns up to 100 newest committed transitions. hasMore=true means older entries are omitted. No settlement proof.")
+    @ApiResponse(responseCode = "200", description = "Merchant-owned payment history")
+    @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token")
+    @ApiResponse(responseCode = "403", description = "Insufficient read scope or merchant identity")
+    @ApiResponse(responseCode = "404", description = "Payment not owned by authenticated merchant")
+    @GetMapping("/{id}/history")
+    public PaymentHistoryResponse history(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return PaymentHistoryResponse.from(history.history(merchantId(jwt), id));
     }
 
     /**
