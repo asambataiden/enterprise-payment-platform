@@ -76,6 +76,40 @@ class PaymentApiExceptionHandlerTest {
     }
 
     @Test
+    void apiFailureLogsContainOnlyAllowlistedCategoriesAndCorrelationId() {
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory
+                .getLogger(PaymentApiExceptionHandler.class);
+        var capture = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        capture.start();
+        logger.addAppender(capture);
+        org.slf4j.MDC.put("correlationId", "safe-correlation-id");
+        try {
+            handler.databaseUnavailable(new org.springframework.dao.DataAccessResourceFailureException(
+                    "postgres.internal:5432 password=supersecret",
+                    new IllegalStateException("jdbc:postgresql://hidden-host/secret")));
+            handler.unexpected(new IllegalStateException("access_token=private-value",
+                    new IllegalArgumentException("api-key=hidden")));
+
+            assertEquals(2, capture.list.size());
+            assertEquals("API failure category=DATABASE_RESOURCE_UNAVAILABLE code=SERVICE_UNAVAILABLE correlationId=safe-correlation-id",
+                    capture.list.get(0).getFormattedMessage());
+            assertEquals("API failure category=UNEXPECTED code=INTERNAL_ERROR correlationId=safe-correlation-id",
+                    capture.list.get(1).getFormattedMessage());
+            for (var event : capture.list) {
+                assertEquals(org.slf4j.event.Level.ERROR.toString(), event.getLevel().toString());
+                org.junit.jupiter.api.Assertions.assertNull(event.getThrowableProxy(),
+                        "Never send exception stack traces or cause chains into production logs");
+                org.junit.jupiter.api.Assertions.assertFalse(event.getFormattedMessage().contains("secret"));
+                org.junit.jupiter.api.Assertions.assertFalse(event.getFormattedMessage().contains("token"));
+            }
+        } finally {
+            logger.detachAppender(capture);
+            capture.stop();
+            org.slf4j.MDC.remove("correlationId");
+        }
+    }
+
+    @Test
     void badRequestErrorHasStableNonSensitiveCode() {
         var response = handler.knownHttpError(new org.springframework.web.server.ResponseStatusException(
                 HttpStatus.BAD_REQUEST, "Invalid idempotency header"));
