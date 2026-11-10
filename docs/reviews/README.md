@@ -8,3 +8,5 @@
 - [Final Java CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42919187324) and [Security CI](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42919187035).
 
 Preserve prior pass/fail and reviewed SHA rather than rewriting old assessments into new release claims.
+
+- [Documentation structure audit, v0.1.0](documentation-audit-v0.1.0.md) — confirmed debt and controlled migration gates.
