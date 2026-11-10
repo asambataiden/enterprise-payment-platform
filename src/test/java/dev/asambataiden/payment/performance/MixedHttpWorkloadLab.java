@@ -72,8 +72,8 @@ class MixedHttpWorkloadLab {
         var claims = new JWTClaimsSet.Builder().issuer(ISSUER).subject("mixed-lab")
                 .audience("enterprise-payment-service")
                 .claim("merchant_id", merchant).claim("scope", "payments:read payments:write")
-                .issueTime(Date.from(Instant.now().minusSeconds(30)))
-                .expirationTime(Date.from(Instant.now().plusSeconds(300))).build();
+                .issueTime(java.util.Date.from(Instant.now().minusSeconds(30)))
+                .expirationTime(java.util.Date.from(Instant.now().plusSeconds(300))).build();
         var jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.RS256), claims);
         jwt.sign(new RSASSASigner((RSAPrivateKey) KEY.getPrivate()));
         return jwt.serialize();
