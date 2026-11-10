@@ -539,3 +539,33 @@ or real funds movement; one targeted IT does not replace full-suite
 verification. The earlier full `clean verify` predates the new
 refund and acceptance tests. This increment has a GO acceptance
 decision, with a fresh full regression required before merge.
+
+
+### November 10, 2026 — simulation HTTP web slice verified; signed-JWT acceptance added
+
+The developer pulled branch through `a405bbb` and ran
+`mvn -B --no-transfer-progress -f "$ROOT/pom.xml" -Dtest=PaymentControllerWebTest test`.
+**17 tests passed, 0 failed, 0 errors, 0 skipped**; `BUILD SUCCESS`
+at **05:36:31 CET**, elapsed **3.488 seconds**.
+This confirms the controller web slice, not full signed-token behavior.
+
+**New follow-up test (committed, not yet executed):**
+`PaymentBearerTokenIT.signedJwtMerchantCanSimulateLifecycleButOtherPrincipalsCannot`
+uses the existing ephemeral RSA signing setup, trusted issuer/audience
+validator, full Spring Security filter chain and PostgreSQL Testcontainers.
+It checks that regular write-scope and another merchant are rejected,
+that the owning merchant can authorize, capture and refund with a signed
+simulation token, that an exact refund retry is idempotent and that the
+database contains three outbox records and two ledger entries.
+No new application service or infrastructure was introduced.
+
+**Focused command:**
+```bash
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" pull --ff-only origin feat/payment-ledger
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" \
+  -Dit.test=PaymentBearerTokenIT \
+  -Dtest=NoSuchTest -Dsurefire.failIfNoSpecifiedTests=false verify
+```
+**Gate:** REQUIRES VERIFICATION of the newly committed signed-token IT
+before considering merchant-facing simulation API complete.
