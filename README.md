@@ -2,6 +2,102 @@
 
 > **Educational simulated payment-intake service** built with Java 25, Spring Boot 4.1.2, PostgreSQL 17, Flyway and Maven. It does **not** move funds or integrate with a regulated payment processor and is **not production ready**.
 
+## Quick start — authenticated local demo
+
+This educational platform simulates payment processing.
+It does not move real funds.
+
+### Requirements
+
+- Java 25 and Maven 3.9+
+- Docker Desktop and Python 3
+- Available localhost ports: 5432, 8080 and 8180
+
+### 1. Start PostgreSQL and Keycloak
+
+Set `DB_PASSWORD`, `KC_BOOTSTRAP_ADMIN_USERNAME` and
+`KC_BOOTSTRAP_ADMIN_PASSWORD` securely in your local shell.
+
+For an existing PostgreSQL volume, use the database user's
+current password.
+
+```bash
+docker compose \
+  -f compose.yaml \
+  -f ops/demo/compose.identity.yaml \
+  --profile identity \
+  up -d postgres keycloak
+```
+
+Keycloak imports the version-controlled `payments` realm
+configuration from `ops/demo/keycloak/payments-realm.json`
+when the realm does not already exist.
+
+### 2. Start Spring Boot
+
+In a separate terminal, set the same `DB_PASSWORD`.
+
+```bash
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://localhost:8180/realms/payments
+export SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES=enterprise-payment-service
+export PAYMENT_SIMULATION_ENABLED=true
+export PAYMENT_KAFKA_ENABLED=false
+
+mvn spring-boot:run
+```
+
+### 3. Verify authentication and payment lifecycle
+
+Check application health:
+
+```bash
+curl -fsS http://localhost:8080/actuator/health
+```
+
+Authenticate the local Keycloak Admin CLI:
+
+```bash
+docker exec -it enterprise-payment-platform-keycloak-1 \
+  /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 \
+  --realm master \
+  --user demo-admin
+```
+
+Run the automated demonstration:
+
+```bash
+python3 ops/demo/local-payment-smoke.py
+```
+
+The smoke test obtains a Keycloak-issued JWT and verifies:
+
+- JWT issuer, audience, merchant identity and scopes
+- Authenticated HTTP payment creation (201)
+- RECEIVED → AUTHORIZED → CAPTURED → REFUNDED
+- Final payment state and committed event history
+
+### 4. Execute regression tests
+
+```bash
+mvn -B --no-transfer-progress clean verify
+```
+
+The integration suite uses PostgreSQL and Kafka Testcontainers.
+
+### Security boundaries
+
+- This is a localhost development environment.
+- The demo identity provider is not production configured.
+- JWT signature, issuer and audience validation remain enabled.
+- Simulation and Kafka are disabled by default.
+- Kafka integration is verified separately using Testcontainers.
+- The local smoke test requires an authenticated Keycloak Admin CLI.
+- Never commit passwords, client secrets or bearer tokens.
+- No real payments or regulated financial settlement occur.
+
+---
+
 ## First-time learner: full beginner walkthrough
 
 **[Start here — from zero to the complete project](docs/learning/00-start-from-zero-beginner-playbook.md)**.
