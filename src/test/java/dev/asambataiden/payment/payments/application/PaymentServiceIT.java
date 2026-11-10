@@ -106,6 +106,15 @@ class PaymentServiceIT {
                 () -> search.search(merchant, "RECEIVED", reference, 1, "a".repeat(300)));
         assertThrows(IllegalArgumentException.class,
                 () -> search.search(merchant, "RECEIVED", reference, 1, ""));
+        String raw = new String(java.util.Base64.getUrlDecoder().decode(cursor),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String[] components = raw.split("\\|", -1);
+        assertEquals(4, components.length);
+        components[1] = "not-a-timestamp";
+        String invalidTime = java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                String.join("|", components).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, invalidTime));
         assertEquals(1, search.search(merchant, "RECEIVED", reference, 1, cursor).payments().size());
     }
 
