@@ -140,6 +140,23 @@ measure actual workload plans before claiming any latency improvement.
 See [learning chapter 43](docs/learning/43-postgresql-query-performance-and-resilience.md).
 This increment requires full regression and CI verification.
 
+## Opt-in PostgreSQL benchmark (synthetic data only)
+
+To collect actual PostgreSQL 17 query plans before and after the
+V9-equivalent indexes, run the isolated Docker benchmark:
+
+```bash
+bash ops/benchmarks/postgresql/run.sh
+```
+
+The runner uses a temporary database with **no published ports** and
+never connects to the application database. It creates 100,000
+synthetic payments and 100,000 synthetic outbox rows, then writes
+`EXPLAIN (ANALYZE, BUFFERS)` evidence to
+`target/postgresql-benchmark/`. Execute only in an approved local lab.
+Results are not pre-claimed as a latency improvement. See
+[learning chapter 44](docs/learning/44-reproducible-postgresql-performance-benchmark.md).
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
