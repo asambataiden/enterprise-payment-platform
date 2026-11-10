@@ -84,6 +84,32 @@ class PaymentServiceIT {
     }
 
     @Test
+    void continuationCursorRejectsChangedFiltersAndOtherMerchants() {
+        String merchant = "cursor-owner-" + UUID.randomUUID();
+        String other = "cursor-foreign-" + UUID.randomUUID();
+        String reference = "order-" + UUID.randomUUID();
+        for (int n = 0; n < 3; n++) {
+            service.create(merchant, UUID.randomUUID().toString(),
+                    new CreatePaymentCommand(new BigDecimal("10.00"), "EUR", reference));
+        }
+        var first = search.search(merchant, "RECEIVED", reference, 1, null);
+        String cursor = first.nextCursor();
+        assertNotNull(cursor);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "FAILED", reference, 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference + "-changed", 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(other, "RECEIVED", reference, 1, cursor));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, "a".repeat(300)));
+        assertThrows(IllegalArgumentException.class,
+                () -> search.search(merchant, "RECEIVED", reference, 1, ""));
+        assertEquals(1, search.search(merchant, "RECEIVED", reference, 1, cursor).payments().size());
+    }
+
+    @Test
     void createsAndRetrievesPersistedPayment() {
         String key = "integration-" + UUID.randomUUID();
 
