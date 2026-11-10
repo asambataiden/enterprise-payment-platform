@@ -28,6 +28,14 @@ and their limitations, troubleshooting, examples and interview
 questions. The test remains opt-in; **no measured results exist
 until a local run is supplied**.
 
+## Milestone 19 — Ten-second trends and tenant fairness
+
+[Chapter 61: beginner tutorial on time-windowed latency and tenant fairness](61-tenant-fairness-and-windowed-latency-from-zero.md)
+documents a discovered correlated-selector defect, its deterministic
+regression test, separated GET/POST per-tenant metrics and the
+exact opt-in local experiment. Previous results must not be
+interpreted as measuring per-tenant write fairness.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
