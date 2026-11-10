@@ -38,8 +38,9 @@ fi
 for candidate in "$jvm_temp_dir"/gc-*.log; do
   if [[ -f "$candidate" ]]; then rm -f "$candidate"; fi
 done
+run_git_sha="$(git -C "$root" rev-parse HEAD)"
 printf 'Milestone 24 — independent Python HTTP client and Spring Boot JVM\nUTC: %s\nSHA: %s\n' \
-  "$(date -u +%FT%TZ)" "$(git -C "$root" rev-parse HEAD)"
+  "$(date -u +%FT%TZ)" "$run_git_sha"
 printf 'Exactly 6000 synthetic requests at 100 RPS; loopback only.\n'
 python3 -m py_compile "$root/ops/benchmarks/http/independent-client-local.py"
 python3 -m py_compile "$root/ops/benchmarks/http/analyze-independent-process.py"
@@ -75,4 +76,20 @@ cp "$test_gc" "$gc_log"
 }
 python3 "$root/ops/benchmarks/http/analyze-independent-process.py" \
   "$client" "$server" | tee "$report"
+
+# Create the manifest only after Maven and correlation validation pass.
+# The manifest itself is not included in the hashed artifact inventory.
+python3 "$root/ops/benchmarks/http/evidence-manifest.py" create \
+  --directory "$out" \
+  --run-id "$id" \
+  --git-commit "$run_git_sha"
+
+manifest="$out/$id-evidence-manifest.json"
+
+python3 "$root/ops/benchmarks/http/evidence-manifest.py" verify \
+  "$manifest"
+
+printf 'EVIDENCE_GOVERNANCE VALIDATED run_id=%s manifest=%s\n' \
+  "$id" "$manifest"
+
 printf 'Evidence: %s, %s, %s, %s, %s\n' "$mvn_log" "$client" "$server" "$gc_log" "$report"
