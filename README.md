@@ -294,6 +294,17 @@ for 60 seconds (3,000 calls)**. It stops on the first failure. The
 legacy 12-second rate ladders remain the default. No sustained
 performance result is claimed until the developer runs this locally.
 
+## Milestone 19 — Windowed latency and tenant fairness (opt-in)
+
+[Chapter 61: beginner tutorial on tenant fairness and 10-second latency windows](docs/learning/61-tenant-fairness-and-windowed-latency-from-zero.md)
+covers the corrected tenant distribution, regression tests and
+per-operation / per-merchant breakdowns. The earlier benchmark sent
+**all writes to the hot merchant**; its historical performance
+numbers stand, but are **not** evidence of per-tenant write fairness.
+Run `MixedHttpTenantDistributionTest` before repeating the
+[sustained HTTP experiment](ops/benchmarks/http/run-sustained-local.sh).
+The revised performance run has not yet been measured locally.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
