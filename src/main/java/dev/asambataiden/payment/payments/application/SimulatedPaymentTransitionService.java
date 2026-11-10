@@ -73,13 +73,17 @@ public class SimulatedPaymentTransitionService {
             throw new IllegalStateException("Concurrent state update rejected");
         }
 
-        // Only a simulated CAPTURE creates the balanced receivable/clearing
-        // journal. No arbitrary account or monetary amount comes from caller.
-        if (target == PaymentState.CAPTURED) {
+        // Full simulated refunds reverse the original capture accounting;
+        // a status-only refund would leave a misleading outstanding balance.
+        // This is NOT an external payment-provider refund or funds movement.
+        if (target == PaymentState.CAPTURED || target == PaymentState.REFUNDED) {
+            boolean reversal = target == PaymentState.REFUNDED;
             var entry = new JournalEntry(UUID.randomUUID(), merchantId, paymentId,
                     current.currency(), List.of(
-                        new LedgerPosting("simulated-clearing-receivable", PostingSide.DEBIT, current.amount()),
-                        new LedgerPosting("simulated-merchant-payable", PostingSide.CREDIT, current.amount())));
+                        new LedgerPosting("simulated-clearing-receivable",
+                                reversal ? PostingSide.CREDIT : PostingSide.DEBIT, current.amount()),
+                        new LedgerPosting("simulated-merchant-payable",
+                                reversal ? PostingSide.DEBIT : PostingSide.CREDIT, current.amount())));
             ledger.append(eventId, entry);
         }
 
