@@ -82,6 +82,29 @@ def analyze(path):
                   f" over20ms={sum(x > 20 for x in values)}"
                   f" over50ms={sum(x > 50 for x in values)}"
                   f" over100ms={sum(x > 100 for x in values)}")
+    # Group adjacent scheduled requests with latency > 50 ms. We allow
+    # gaps of up to five sequence IDs so GET/POST interleaving doesn't
+    # fragment a short burst into dozens of one-request clusters.
+    # This is a heuristic grouping by planned sequence, not an exact
+    # wall-clock pause or a causality classifier.
+    slow = sorted((s for s in samples if s[3] > 50), key=lambda s: s[0])
+    groups = []
+    for sample in slow:
+        if not groups or sample[0] - groups[-1][-1][0] > 5:
+            groups.append([sample])
+        else:
+            groups[-1].append(sample)
+    print("SLOW-REQUEST CLUSTERS (>50ms, scheduled-sequence gap <=5)")
+    for group in groups:
+        merchants = sorted({s[1] for s in group})
+        operations = sorted({s[2] for s in group})
+        print(f"sequence_first={group[0][0]} sequence_last={group[-1][0]}"
+              f" count={len(group)}"
+              f" scheduled_start_sec={(group[0][0]-1)/100:.2f}"
+              f" scheduled_end_sec={(group[-1][0]-1)/100:.2f}"
+              f" max_latency_ms={max(s[3] for s in group):.3f}"
+              f" merchants={merchants} operations={operations}")
+    print("Cluster timestamps are nominal dispatch times, not measured wall-clock timestamps.")
     print("SLOWEST 20 REQUESTS (synthetic fields only)")
     for seq, merchant, op, ms, window in sorted(samples, key=lambda s: s[3], reverse=True)[:20]:
         print(f"sequence={seq} merchant={merchant} op={op}"
