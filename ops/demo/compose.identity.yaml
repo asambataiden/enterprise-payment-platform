@@ -12,5 +12,5 @@ services:
     ports:
       - "127.0.0.1:8180:8080"
     volumes:
-      - ./keycloak/payments-realm.json:/opt/keycloak/data/import/payments-realm.json:ro
+      - ./ops/demo/keycloak/payments-realm.json:/opt/keycloak/data/import/payments-realm.json:ro
     mem_limit: 1g
