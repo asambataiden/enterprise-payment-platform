@@ -333,3 +333,41 @@ Do not spend another full lab iteration solely to close that known
 provisioning-evidence gap; track it separately and prioritize core
 payment functionality. The independent Flyway duplicate-V1 problem
 remains open and is not resolved by this Kafka success.
+
+
+### November 10, 2026 — Flyway incident closed; domain transition guard added
+
+The developer removed generated Maven `target/` output and ran
+`mvn -B --no-transfer-progress -f "$ROOT/pom.xml" clean verify`.
+The submitted run reported **BUILD SUCCESS**, **85 unit tests** and
+**67 integration tests**, all passing. Flyway validated/applied exactly
+**eight migrations** in the new PostgreSQL Testcontainers databases.
+The prior duplicate `V1__create_payments 2.sql` was confined to
+generated `target/classes`, not versioned migrations. Removing generated
+build output resolved the incident; why the duplicates appeared
+(working directory under iCloud Drive is a hypothesis) remains unproven.
+
+**Next increment: business lifecycle regression coverage.**
+A compact test in `PaymentStateMachineTest` enumerates all 36
+(current, target) combinations of the six simulated payment states.
+An independently authored business matrix expects **seven allowed**
+transitions and **29 forbidden**, including self-transitions and
+terminal-state escapes. No application logic or architecture was
+changed. Test added to the connected GitHub branch but **not yet
+executed locally**.
+
+**Six-question review:** (1) business objective: prevent invalid
+simulated authorization/capture/refund state changes; (2) 10× traffic:
+pure in-memory constant-size rule and test, not a throughput bottleneck;
+(3) dependency failure: no external dependency in the policy;
+(4) simpler: reuse existing domain class, no new framework;
+(5) optimization: payment correctness and inexpensive regression
+evidence; (6) six-month regret: the duplicated matrix must be
+intentionally updated when business policy changes, otherwise the test
+should fail and force a deliberate review.
+
+**Next focused validation (no Kafka lab):**
+`mvn -B -q -f "$ROOT/pom.xml" -Dtest=PaymentStateMachineTest test`.
+Full CI `clean verify` should still run before merge, not after each
+trivial test-only commit. Production settlement or refunds are not
+implemented by this test.
