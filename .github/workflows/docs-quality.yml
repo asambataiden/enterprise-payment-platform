@@ -1,0 +1,29 @@
+name: Documentation Quality
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "ops/docs/**"
+      - ".github/workflows/docs-quality.yml"
+  push:
+    branches: [main]
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "ops/docs/**"
+      - ".github/workflows/docs-quality.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-links:
+    name: Python | Canonical documentation links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check canonical Markdown local links
+        run: python3 ops/docs/check-markdown-links.py
