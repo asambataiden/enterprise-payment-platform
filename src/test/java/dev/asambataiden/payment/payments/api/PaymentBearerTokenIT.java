@@ -222,6 +222,88 @@ class PaymentBearerTokenIT {
                 Long.class, owner, paymentId));
     }
 
+    /**
+     * Milestone 18: concurrent signed-token HTTP retries must not create
+     * duplicate simulated payments. This tests the actual security filter,
+     * controller, application transaction and PostgreSQL unique constraint.
+     */
+    @Test
+    void concurrentSignedHttpRetriesReuseOneRowAndEnforceMerchantIsolation() throws Exception {
+        final int callers = 8;
+        String merchant = "retry-owner-" + UUID.randomUUID();
+        String otherMerchant = "retry-foreign-" + UUID.randomUUID();
+        String key = "same-key-" + UUID.randomUUID();
+        String ownerToken = trusted(merchant, "payments:write payments:read");
+        String requestJson = """
+                {"amount":29.99,"currency":"EUR","merchantReference":"same-order"}
+                """;
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var ready = new java.util.concurrent.CountDownLatch(callers);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(callers)) {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<String>>();
+            for (int n = 0; n < callers; n++) {
+                futures.add(pool.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Concurrent request start gate timed out");
+                    }
+                    var response = mvc.perform(post("/api/v1/payments")
+                                    .header("Authorization", "Bearer " + ownerToken)
+                                    .header("Idempotency-Key", key)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson))
+                            .andExpect(status().isCreated())
+                            .andExpect(jsonPath("$.status").value("RECEIVED"))
+                            .andReturn().getResponse();
+                    return response.getHeader("Location");
+                }));
+            }
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    ready.await(10, java.util.concurrent.TimeUnit.SECONDS),
+                    "All eight clients must reach the start gate");
+            start.countDown();
+            var locations = new java.util.HashSet<String>();
+            for (var future : futures) {
+                String location = future.get(20, java.util.concurrent.TimeUnit.SECONDS);
+                org.junit.jupiter.api.Assertions.assertNotNull(location);
+                locations.add(location);
+            }
+            org.junit.jupiter.api.Assertions.assertEquals(1, locations.size(),
+                    "Eight concurrent same-key POSTs must return the same payment location");
+            String location = locations.iterator().next();
+            String id = location.substring(location.lastIndexOf('/') + 1);
+            org.junit.jupiter.api.Assertions.assertEquals(1L, jdbc.queryForObject(
+                    "SELECT count(*) FROM payments WHERE merchant_id = ? AND idempotency_key = ?",
+                    Long.class, merchant, key));
+
+            mvc.perform(get(location).header("Authorization", "Bearer " + ownerToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.amount").value(29.99));
+
+            // A key is NOT permission to overwrite an existing payment.
+            mvc.perform(post("/api/v1/payments")
+                            .header("Authorization", "Bearer " + ownerToken)
+                            .header("Idempotency-Key", key)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"amount":30.99,"currency":"EUR","merchantReference":"same-order"}
+                                    """))
+                    .andExpect(status().isConflict());
+
+            // Correctly signed credentials for another merchant still
+            // cannot retrieve the owning merchant's record.
+            mvc.perform(get(location)
+                            .header("Authorization", "Bearer " +
+                                    trusted(otherMerchant, "payments:read")))
+                    .andExpect(status().isNotFound());
+
+            org.junit.jupiter.api.Assertions.assertEquals(1L, jdbc.queryForObject(
+                    "SELECT count(*) FROM payments WHERE merchant_id = ? AND idempotency_key = ?",
+                    Long.class, merchant, key));
+            org.junit.jupiter.api.Assertions.assertEquals(UUID.fromString(id).toString(), id);
+        }
+    }
+
     @Test
     void rejectsForgedSignature() throws Exception {
         mvc.perform(get("/api/v1/payments/{id}", UUID.randomUUID())
