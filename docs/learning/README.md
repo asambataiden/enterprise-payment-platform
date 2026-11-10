@@ -98,6 +98,14 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — JVM GC parser semantic regression fix
+
+[Chapter 74: corrected padded GC-tag handling and regression tests](74-g1-pause-parser-regression-and-verified-evidence.md)
+documents why a valid JVM log incorrectly produced `count=0`,
+the whitespace normalization fix, unit tests using the
+observed G1 format, and the offline rerun. The expected
+12-pause summary is pending verification on the original Mac logs.
+
 ## Milestone 22 — Verified in-stage G1 pause timeline
 
 [Chapter 73: 12 observed G1 pauses, 36 measured-stage log lines and no concurrent >50-ms HTTP requests](73-verified-g1-pause-timeline-and-nonrecurring-latency-spikes.md)
