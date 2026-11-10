@@ -1,6 +1,6 @@
 # Chapter 75 — Measuring HTTP Client and Server Time Separately, From Zero
 
-> **Milestone 23: implementation committed, local evidence not yet measured.**
+> **Milestone 23: implementation and local evidence verified on November 10, 2026.**
 > This is an educational **simulated payment** platform. The experiment
 > uses a localhost Spring Boot HTTP server, Testcontainers PostgreSQL 17,
 > signed synthetic JWTs, and one explicitly bounded workload.
@@ -158,8 +158,7 @@ The standalone regression tests cover:
 5. Accepting the new ten-column synthetic fixture.
 6. Rejecting a negative server duration.
 
-These are **test cases committed for execution**, not
-claims that they have already passed on the user's Mac.
+All six regression tests subsequently **passed on the developer's Mac**.
 
 ## 7. Practical macOS steps
 
@@ -212,10 +211,9 @@ That is an explicit next-stage architectural goal,
 which should be undertaken only after this narrower
 increment passes its correctness and evidence gates.
 
-The transient latency incident from the earlier
-experiment remains unexplained. A new
-healthy 60-second run would not, by itself,
-explain why the anomaly occurred once.
+The local bounded run subsequently passed, but the transient latency
+incident from the earlier experiment remains unexplained. A healthy
+60-second run does not, by itself, explain why the anomaly occurred once.
 
 ## 9. Interview questions
 
@@ -246,3 +244,52 @@ isolate the cause?** A stop-the-world JVM pause
 affects both the test client and server. A future
 separate-client JVM experiment would remove
 that shared runtime as a confounding factor.
+
+## 10. Actual verified local result — November 10, 2026
+
+The developer ran the opt-in experiment at implementation commit
+`f49bc1b4e772c36013fe98ffccd5828d6091997f` on their Mac,
+starting at 12:21:17 UTC. The runner produced Maven, CSV, JVM,
+and offline analysis logs under `target/http-load-lab/`.
+
+**Independent evidence gates:** all six Python regression tests passed;
+Maven reported one passing integration test and `BUILD SUCCESS`;
+all 6,000 rows were validated (4,800 GET, 1,200 POST); there were
+zero HTTP status errors and zero negative paired residuals.
+
+| Verified synthetic workload metric | GET | POST |
+| --- | ---: | ---: |
+| Measured calls | 4,800 | 1,200 |
+| Client p95 (ms) | 4.277 | 6.604 |
+| Client p99 (ms) | 5.334 | 7.896 |
+| Server p95 (ms) | 3.551 | 5.953 |
+| Residual p95 (ms) | 0.849 | 0.789 |
+| Server maximum (ms) | 16.846 | 14.638 |
+
+The measured throughput was **100.01 RPS** over **59.994 s**.
+The 250-ms Hikari/DB snapshots had zero pending connections,
+zero observed DB waits and maximum one active connection.
+Maximum in-flight client requests was two; max scheduling lag
+was **2.541 ms**. These sampling results cannot rule out
+shorter-than-sample-interval waiting events.
+
+The PID-matched JVM evidence contained **105** matching
+GC/safepoint log lines: **69 startup, 36 measured, 0 post-stage**.
+Twelve measured G1 pause-completion records ranged from **2.877** to
+**4.635 ms**, with sum **47.572 ms**. The analyzer reported
+`slow_requests_over50ms=0`.
+
+**CI for the exact tested commit:**
+[Java CI passed](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42814697597)
+and [Security CI passed](https://github.com/asambataiden/enterprise-payment-platform/actions/runs/42814697825).
+These standard CI workflows are distinct from the opt-in Mac
+performance test.
+
+### Verified limits
+
+The new `server_elapsed_ms` includes a test-only servlet-filter
+interval, not a separately instrumented full application lifetime.
+The residual is not a standalone measurement of network latency.
+Both endpoints remain in the same Surefire JVM; this is an
+**instrumentation milestone**, not yet independent-process isolation.
+The earlier one-off 30–40-s latency incident is still unexplained.
