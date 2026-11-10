@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -46,6 +47,14 @@ public class PaymentApiExceptionHandler {
                 "A required service is temporarily unavailable.", PaymentApiErrorCode.SERVICE_UNAVAILABLE);
         response.getBody().setProperty("retryable", true);
         return response;
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    ResponseEntity<ProblemDetail> noHandlerResource(NoResourceFoundException exception) {
+        // Missing routes must remain 404, including the deliberately absent
+        // training controller; no filesystem path or internal details leak.
+        return domainError(HttpStatus.NOT_FOUND, "Not Found",
+                "Resource not found.", PaymentApiErrorCode.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)
