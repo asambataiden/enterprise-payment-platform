@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * These requests carry actual signed bearer tokens, not jwt() mock principals.
  */
 @Testcontainers
-@SpringBootTest
+@SpringBootTest(properties = "payment.simulation.enabled=true")
 @AutoConfigureMockMvc
 @Import(PaymentBearerTokenIT.TrustedTestIssuer.class)
 class PaymentBearerTokenIT {
