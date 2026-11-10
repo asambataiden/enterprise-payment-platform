@@ -61,6 +61,14 @@ teaches the why, what, how, commands, measurements, limitations
 and interview defense. The runner is opt-in and its performance
 results cannot be claimed before the developer's local run.
 
+## Milestone 21 — Larger corpus and raw request-level evidence
+
+[Chapter 65: beginner tutorial for larger synthetic datasets and raw CSV timings](65-large-corpus-raw-latency-evidence-from-zero.md)
+documents the bounded 128-records-per-merchant experiment, evidence
+columns, CSV integrity checks, command-by-command walkthrough,
+tradeoffs, limits and interview questions. The experiment is opt-in
+and has not been executed locally for this commit.
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
