@@ -74,7 +74,7 @@ class MixedHttpWorkloadLab {
     @Autowired HikariDataSource pool;
     @Autowired PaymentService payments;
 
-    record Sample(boolean write, int status, double ms) {}
+    record Sample(boolean write, int status, double ms, int merchantIndex, int window) {}
     record PoolSample(int active, int idle, int pending, int total, int dbWaiting) {}
     record MerchantTarget(String merchant, String token, List<URI> readUrls) {}
 
@@ -108,9 +108,12 @@ class MixedHttpWorkloadLab {
             throws Exception {
         boolean write = n % 5 == 0; // 80 percent GET, 20 percent POST
         int requestNumber = Math.abs(n);
-        // Deterministic tenant skew: 70% hot merchant, 10% each other.
-        int merchantIndex = (requestNumber % 10 < 7) ? 0
-                : 1 + requestNumber % 3;
+        // Vary tenant independently of GET/POST: every operation type
+        // visits all ten tenant buckets over a 50-request cycle.
+        // The old n%10 formula mapped EVERY write (n%5==0) to merchant 0.
+        int tenantBucket = ((requestNumber / 5) * 7
+                + (requestNumber % 5) * 3) % 10;
+        int merchantIndex = tenantBucket < 7 ? 0 : tenantBucket - 6;
         var merchant = merchants.get(merchantIndex);
         var target = write ? URI.create("http://127.0.0.1:" + port + "/api/v1/payments")
                 : merchant.readUrls().get((requestNumber / 10) % RECORDS_PER_MERCHANT);
@@ -124,7 +127,11 @@ class MixedHttpWorkloadLab {
         } else request.GET();
         long begin = System.nanoTime();
         var response = http.send(request.build(), HttpResponse.BodyHandlers.discarding());
-        return new Sample(write, response.statusCode(), (System.nanoTime() - begin) / 1e6);
+        // Window is based on the intended dispatch sequence, not the
+        // completion time, so a slow response cannot move to another bucket.
+        int window = n < 0 ? -1 : (n - 1) / (RATE * 10);
+        return new Sample(write, response.statusCode(),
+                (System.nanoTime() - begin) / 1e6, merchantIndex, window);
     }
     private static void report(String phase, List<Sample> results) {
         for (boolean write : new boolean[]{false, true}) {
@@ -140,6 +147,60 @@ class MixedHttpWorkloadLab {
                     percentile(latencies, .50), percentile(latencies, .95),
                     percentile(latencies, .99));
         }
+    }
+
+    /**
+     * Explainable latency breakdowns for sustained 30/60-second stages.
+     * Aggregate read and write separately; tenant percentiles are not
+     * meaningful if one operation receives too few samples.
+     */
+    private static void reportBreakdowns(List<Sample> samples) {
+        if (DURATION_SECONDS < 30) return;
+        int windows = (DURATION_SECONDS + 9) / 10;
+        int sumWindowSamples = 0;
+        for (int window = 0; window < windows; window++) {
+            final int targetWindow = window;
+            for (boolean write : new boolean[]{false, true}) {
+                var bucket = samples.stream().filter(s -> s.window() == targetWindow
+                        && s.write() == write).toList();
+                assertFalse(bucket.isEmpty(), "Missing time-window request samples");
+                long success = bucket.stream()
+                        .filter(s -> s.status() == (write ? 201 : 200)).count();
+                System.out.printf(Locale.ROOT,
+                        "MIXED_HTTP_LAB breakdown=window start_sec=%d end_sec=%d"
+                        + " op=%s samples=%d success=%d p50_ms=%.3f p95_ms=%.3f"
+                        + " p99_ms=%.3f%n",
+                        window * 10, Math.min((window + 1) * 10, DURATION_SECONDS),
+                        write ? "write" : "read", bucket.size(), success,
+                        percentile(bucket.stream().map(Sample::ms).toList(), .50),
+                        percentile(bucket.stream().map(Sample::ms).toList(), .95),
+                        percentile(bucket.stream().map(Sample::ms).toList(), .99));
+                sumWindowSamples += bucket.size();
+            }
+        }
+        assertEquals(samples.size(), sumWindowSamples, "Time windows must cover all requests");
+
+        int sumMerchantSamples = 0;
+        for (int tenant = 0; tenant < MERCHANTS; tenant++) {
+            final int merchant = tenant;
+            for (boolean write : new boolean[]{false, true}) {
+                var bucket = samples.stream().filter(s -> s.merchantIndex() == merchant
+                        && s.write() == write).toList();
+                assertFalse(bucket.isEmpty(), "Missing merchant/operation samples");
+                long success = bucket.stream()
+                        .filter(s -> s.status() == (write ? 201 : 200)).count();
+                System.out.printf(Locale.ROOT,
+                        "MIXED_HTTP_LAB breakdown=tenant merchant_index=%d"
+                        + " op=%s samples=%d success=%d p50_ms=%.3f"
+                        + " p95_ms=%.3f p99_ms=%.3f%n",
+                        merchant, write ? "write" : "read", bucket.size(), success,
+                        percentile(bucket.stream().map(Sample::ms).toList(), .50),
+                        percentile(bucket.stream().map(Sample::ms).toList(), .95),
+                        percentile(bucket.stream().map(Sample::ms).toList(), .99));
+                sumMerchantSamples += bucket.size();
+            }
+        }
+        assertEquals(samples.size(), sumMerchantSamples, "Every sample must have one tenant");
     }
 
     @Test
@@ -231,6 +292,7 @@ class MixedHttpWorkloadLab {
                 for (var future : futures) results.add(future.get(10, TimeUnit.SECONDS));
                 double elapsed = (System.nanoTime() - start) / 1e9;
                 report("measured", results);
+                reportBreakdowns(results);
                 long wrong = results.stream().filter(s -> s.status() != (s.write() ? 201 : 200)).count();
                 // Take a stable snapshot while the periodic sampler may still run.
                 List<PoolSample> captured;
