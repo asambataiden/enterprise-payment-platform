@@ -462,3 +462,51 @@ or a specific filesystem without measurement.
 **Architecture gate:** GO on the simulated full-refund compensation
 for continued development. Partial/multiple refunds, external transfer
 and settlement remain explicitly out of scope.
+
+
+### November 10, 2026 — end-to-end simulated business acceptance test added
+
+**Implementation:** `SimulatedPaymentLifecycleAcceptanceIT` composes
+existing payment service, simulated state transition, PostgreSQL
+ledger, explicit outbox dispatcher, trusted transactional inbox and
+local projection. No production class, schema, Kafka configuration
+or external payment integration was added.
+
+**Business journey:** Create payment using idempotency key; authorize;
+capture; issue full refund; assert persisted status is REFUNDED,
+the capture and compensating refund journals both exist and the
+net balance of each simulated ledger account is zero; dispatch the
+three committed outbox events through an in-process trusted transport;
+assert the projection receives each exactly once; replay one delivered
+event and assert no additional local effect.
+
+**Test boundary:** A real PostgreSQL Testcontainers database is used,
+but the publisher runs in-process instead of Kafka. This tests the
+application-to-local-projection dataflow and transactional inbox,
+**not** broker authentication, cross-service consistency, or real
+money movement. The test is committed but **has not yet been run**.
+
+**Review gate:** GO pending local verification. At 10× traffic,
+measure outbox backlog and database locking separately; a single
+bounded dispatcher invocation does not establish throughput. Failure
+during the simulated publication is already covered by dispatcher
+and inbox component tests. The acceptance test deliberately reuses
+existing business services, rather than introducing an HTTP route,
+fake bank provider or another framework.
+
+**Single focused command:**
+
+```bash
+ROOT="$(git rev-parse --show-toplevel)"
+git -C "$ROOT" pull --ff-only origin feat/payment-ledger
+mvn -B --no-transfer-progress -f "$ROOT/pom.xml" \
+  -Dit.test=SimulatedPaymentLifecycleAcceptanceIT \
+  -DskipTests=false -Dtest=NoSuchTest \
+  -Dsurefire.failIfNoSpecifiedTests=false verify
+```
+
+This invocation targets Failsafe and intentionally suppresses the
+Surefire no-matching-tests failure for the selected IT class.
+Verify the actual executed case in the Failsafe summary before
+marking it complete. The prior full application regression is the
+baseline, not evidence that this new test passed.
