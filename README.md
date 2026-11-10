@@ -48,11 +48,19 @@ The issuer above is an example; configure the real issuer, audience and token-is
 | Method | Path | Access |
 | --- | --- | --- |
 | `POST` | `/api/v1/payments` | Valid JWT, `payments:write`, trusted merchant claim, `Idempotency-Key` |
+| `GET` | `/api/v1/payments` | Valid JWT, `payments:read`; keyset-paginated merchant search with exact status/reference filters |
 | `GET` | `/api/v1/payments/{id}` | Valid JWT, `payments:read`, owning merchant |
 | `GET` | `/api/v1/payments/{id}/history` | Valid JWT, `payments:read`, owning merchant; up to 100 newest committed simulation transitions |
 | `POST` | `/api/v1/payments/{id}/simulated-transitions` | Valid JWT, **`payments:simulate`**, owning merchant, `Event-Id` UUID |
 | `GET` | `/actuator/health` | Public |
 | Other routes | — | Denied by default |
+
+Merchant payment search supports `GET /api/v1/payments?limit=25&status=RECEIVED&merchantReference=order-42`.
+Use the response's `nextCursor` for subsequent pages, preserving the same
+filters. The page size must be 1–100. It returns no total count and
+cannot query another merchant's payments. See
+[learning chapter 39](docs/learning/39-merchant-payment-search-and-keyset-pagination.md).
+This new search increment is pending full CI verification.
 
 The history endpoint returns the current merchant-owned payment and a
 bounded list of committed simulated lifecycle events, ordered newest-first.
