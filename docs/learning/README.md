@@ -98,6 +98,14 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 22 — Evidence pipeline failure and recovery
+
+[Chapter 70: JVM log missing after a successful HTTP load test](70-missing-jvm-log-diagnostic-recovery.md)
+records 6,000 successful measured requests and the distinct failure
+to collect a GC/safepoint log. It explains the corrected space-free
+absolute JVM logging path, preflight cleanup, evidence integrity checks,
+and the local rerun. The underlying latency anomaly remains open.
+
 ## Milestone 22 — Client request timelines and JVM evidence
 
 [Chapter 69: correlated client offsets and GC/safepoint logging explained from zero](69-correlated-jvm-client-timing-diagnostics-from-zero.md)
