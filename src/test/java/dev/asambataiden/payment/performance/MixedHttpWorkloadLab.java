@@ -150,7 +150,7 @@ class MixedHttpWorkloadLab {
      * Aggregate read and write separately; tenant percentiles are not
      * meaningful if one operation receives too few samples.
      */
-    private static void reportBreakdowns(List<Sample> samples) {
+    private static void reportBreakdowns(List<Sample> samples, double elapsedSeconds) {
         if (DURATION_SECONDS < 30) return;
         int windows = (DURATION_SECONDS + 9) / 10;
         int sumWindowSamples = 0;
@@ -187,9 +187,10 @@ class MixedHttpWorkloadLab {
                         .filter(s -> s.status() == (write ? 201 : 200)).count();
                 System.out.printf(Locale.ROOT,
                         "MIXED_HTTP_LAB breakdown=tenant merchant_index=%d"
-                        + " op=%s samples=%d success=%d p50_ms=%.3f"
-                        + " p95_ms=%.3f p99_ms=%.3f%n",
+                        + " op=%s samples=%d success=%d completed_rps=%.3f"
+                        + " p50_ms=%.3f p95_ms=%.3f p99_ms=%.3f%n",
                         merchant, write ? "write" : "read", bucket.size(), success,
+                        success / elapsedSeconds,
                         percentile(bucket.stream().map(Sample::ms).toList(), .50),
                         percentile(bucket.stream().map(Sample::ms).toList(), .95),
                         percentile(bucket.stream().map(Sample::ms).toList(), .99));
@@ -288,7 +289,7 @@ class MixedHttpWorkloadLab {
                 for (var future : futures) results.add(future.get(10, TimeUnit.SECONDS));
                 double elapsed = (System.nanoTime() - start) / 1e9;
                 report("measured", results);
-                reportBreakdowns(results);
+                reportBreakdowns(results, elapsed);
                 long wrong = results.stream().filter(s -> s.status() != (s.write() ? 201 : 200)).count();
                 // Take a stable snapshot while the periodic sampler may still run.
                 List<PoolSample> captured;
