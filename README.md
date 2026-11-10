@@ -157,6 +157,24 @@ synthetic payments and 100,000 synthetic outbox rows, then writes
 Results are not pre-claimed as a latency improvement. See
 [learning chapter 44](docs/learning/44-reproducible-postgresql-performance-benchmark.md).
 
+## Statistical PostgreSQL read/write lab
+
+For repeatable *synthetic* measurements on an isolated PostgreSQL 17
+container, run:
+
+```bash
+bash ops/benchmarks/postgresql/run-statistical.sh
+```
+
+This opt-in lab measures **40 post-warm-up read samples per variant** for
+merchant search, filtered keyset search and history; it also compares
+**12 batches of 1,000 inserts** with and without a V9-style secondary
+index. The generated log reports sample median/p95 and index footprint.
+These are serial database measurements, not p95 HTTP latency,
+transaction-commit throughput or an application service-level objective.
+See [Chapter 46](docs/learning/46-statistical-postgresql-read-write-benchmark.md).
+The script has not yet been executed or benchmark-verified.
+
 ## Further hardening required
 
 - Choose and validate a production identity provider's token issuer, audience, merchant claim mapping and rotation policy.
