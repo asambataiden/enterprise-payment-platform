@@ -1,6 +1,8 @@
 package dev.asambataiden.payment.payments.api;
 
 import dev.asambataiden.payment.payments.application.PaymentService;
+import dev.asambataiden.payment.payments.application.PaymentSearchService;
+import dev.asambataiden.payment.payments.api.dto.PaymentSearchResponse;
 import dev.asambataiden.payment.payments.application.PaymentHistoryService;
 import dev.asambataiden.payment.payments.api.dto.PaymentHistoryResponse;
 import dev.asambataiden.payment.payments.application.SimulatedPaymentTransitionService;
@@ -32,12 +34,14 @@ public class PaymentController {
     private final PaymentService service;
     private final SimulatedPaymentTransitionService transitions;
     private final PaymentHistoryService history;
+    private final PaymentSearchService search;
 
     public PaymentController(PaymentService service, SimulatedPaymentTransitionService transitions,
-                             PaymentHistoryService history) {
+                             PaymentHistoryService history, PaymentSearchService search) {
         this.service = service;
         this.transitions = transitions;
         this.history = history;
+        this.search = search;
     }
 
     @Operation(summary = "Create or safely retry a simulated payment",
@@ -57,6 +61,35 @@ public class PaymentController {
         PaymentResponse payment = PaymentResponse.from(service.create(merchantId(jwt), key,
                 new CreatePaymentCommand(request.amount(), request.currency(), request.merchantReference())));
         return ResponseEntity.created(URI.create("/api/v1/payments/" + payment.id())).body(payment);
+    }
+
+    @Operation(summary = "Search authenticated merchant's simulated payments",
+            description = "Keyset-paginated newest-first results. Optional exact status and merchantReference filters; maximum 100 records per page.")
+    @ApiResponse(responseCode = "200", description = "Merchant-owned payment page")
+    @ApiResponse(responseCode = "400", description = "Invalid filter, page size or cursor")
+    @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token")
+    @ApiResponse(responseCode = "403", description = "Missing read scope or merchant identity")
+    @GetMapping
+    public PaymentSearchResponse search(
+            @RequestParam(defaultValue = "25") int limit,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String merchantReference,
+            @RequestParam(required = false) String cursor,
+            @AuthenticationPrincipal Jwt jwt) {
+        String validStatus = null;
+        if (status != null) {
+            try {
+                validStatus = PaymentState.valueOf(status).name();
+            } catch (IllegalArgumentException invalidStatus) {
+                throw new ResponseStatusException(BAD_REQUEST, "Invalid payment status filter");
+            }
+        }
+        try {
+            return PaymentSearchResponse.from(search.search(
+                    merchantId(jwt), validStatus, merchantReference, limit, cursor));
+        } catch (IllegalArgumentException invalidSearch) {
+            throw new ResponseStatusException(BAD_REQUEST, "Invalid payment search parameters");
+        }
     }
 
     @Operation(summary = "Get a simulated payment owned by the authenticated merchant")
