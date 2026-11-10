@@ -98,6 +98,16 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 24 — Independent-process HTTP client experiment
+
+[Chapter 76: independent Python load generator and Java server JVM](76-independent-client-process-architecture-from-zero.md)
+introduces a separate Python HTTP client process, synthetic JWT fixture
+delivery over stdin, local-only 100-RPS × 60-second traffic, independent
+client/server monotonic clock domains, sequence-paired duration analysis,
+PID-matched server JVM GC evidence, offline contract tests and macOS
+reproduction steps. **Implementation committed; local workload results
+remain unverified until the new opt-in experiment is run.**
+
 ## Milestone 23 — Test-only client/server request timing
 
 [Chapter 75: paired client and server timings, explained from first principles](75-request-level-client-server-timing-from-zero.md)
