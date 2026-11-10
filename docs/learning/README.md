@@ -98,6 +98,16 @@ columns, CSV integrity checks, command-by-command walkthrough,
 tradeoffs, limits and interview questions. The experiment is opt-in
 and has not been executed locally for this commit.
 
+## Milestone 23 — Test-only client/server request timing
+
+[Chapter 75: paired client and server timings, explained from first principles](75-request-level-client-server-timing-from-zero.md)
+introduces a test-only Servlet Filter, synthetic sequence correlation,
+ten-column timing CSV, GET/POST server and residual percentiles, and
+six offline regression checks. The same 100-RPS / 60-second Testcontainers
+envelope remains unchanged. This captures both timing boundaries
+in one JVM; a separate load-generator process is future work.
+The new workload has not been executed locally yet.
+
 ## Milestone 22 — JVM GC parser semantic regression fix
 
 [Chapter 74: corrected padded GC-tag handling and regression tests](74-g1-pause-parser-regression-and-verified-evidence.md)
