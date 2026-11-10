@@ -64,5 +64,5 @@ fi
 
 # Pipefail ensures failed SQL stops the run, even while tee writes evidence.
 docker exec -i "$container" psql -X -q -v ON_ERROR_STOP=1 \
-  -U postgres -d postgres < "$sql" | tee -a "$result"
+  -U postgres -d postgres < "$sql" 2>&1 | tee -a "$result"
 echo "Statistical benchmark results: $result"
