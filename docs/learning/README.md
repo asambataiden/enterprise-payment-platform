@@ -12,6 +12,13 @@ repeatable teaching/evidence checklist. Our documentation standard
 is now **plain-language explanation first, precise engineering
 explanation second**, from prerequisites to tests and limitations.
 
+## Milestone 18 — Follow the implementation line by line
+
+[Chapter 57: concurrent signed-token idempotency, explained from zero](57-idempotency-under-concurrent-http-retries-from-zero.md)
+explains each test stage, its SQL evidence, expected HTTP results,
+terminal commands and the difference between correctness and load
+testing. Read it after the [beginner playbook](00-start-from-zero-beginner-playbook.md).
+
 ## Learning contract
 
 For practical commands use a discovered repository root and preserve **observed** test evidence. Chapter 35 maintains an execution timeline and a retrospective documentation backlog for Chapters 01–34; do not treat an implementation commit as proof of runtime verification.
