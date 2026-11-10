@@ -18,7 +18,7 @@ HEADER = ("sequence", "merchant_index", "operation", "http_status",
 UPTIME = re.compile(r"MIXED_HTTP_LAB stage_start_jvm_uptime_ms=(\d+)")
 JVM_EVENT = re.compile(r"^\[(\d+)ms\]\[[^]]+\]\[([^]]+)\] (.*)$")
 PAUSE = re.compile(r"\bPause\b|Safepoint", re.IGNORECASE)
-GC_COMPLETION = re.compile(r"^GC\\((\\d+)\\) Pause .+? ([0-9]+(?:\\.[0-9]+)?)ms$")
+GC_COMPLETION = re.compile(r"^GC\((\d+)\) Pause .+? ([0-9]+(?:\.[0-9]+)?)ms$")
 
 
 def analyze(csv_file, gc_file, mvn_file):
