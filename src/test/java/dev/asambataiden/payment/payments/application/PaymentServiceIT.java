@@ -48,6 +48,33 @@ class PaymentServiceIT {
     JdbcTemplate jdbc;
 
     @Test
+    @org.springframework.transaction.annotation.Transactional
+    void merchantPaginationIndexIsAvailableToPostgresQueryPlanner() {
+        String ddl = jdbc.queryForObject("""
+                SELECT indexdef FROM pg_indexes
+                WHERE schemaname = current_schema()
+                  AND tablename = 'payments'
+                  AND indexname = 'idx_payments_merchant_created_id'
+                """, String.class);
+        assertNotNull(ddl, "Flyway V9 must create the merchant-keyset index");
+        assertTrue(ddl.contains("merchant_id"));
+        assertTrue(ddl.contains("created_at DESC"));
+        assertTrue(ddl.contains("id DESC"));
+
+        // For tiny Testcontainers tables PostgreSQL legitimately prefers a
+        // sequential scan. Disable it *in this test transaction only* to
+        // verify the intended ordered index access path remains possible.
+        // This is an access-path assertion, NOT a performance benchmark.
+        jdbc.execute("SET LOCAL enable_seqscan = off");
+        String plan = String.join("\\n", jdbc.query("""
+                EXPLAIN SELECT id, amount, currency, merchant_reference, status, created_at
+                FROM payments WHERE merchant_id = ?
+                ORDER BY created_at DESC, id DESC LIMIT 10
+                """, (rs, row) -> rs.getString(1), "merchant-plan-test"));
+        assertTrue(plan.contains("idx_payments_merchant_created_id"), plan);
+    }
+
+    @Test
     void searchUsesKeysetPaginationAndNeverLeaksOtherMerchantsPayments() {
         String merchant = "merchant-search-" + UUID.randomUUID();
         String otherMerchant = "merchant-other-" + UUID.randomUUID();
