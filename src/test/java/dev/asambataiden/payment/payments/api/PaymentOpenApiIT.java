@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** API contract served only when explicitly enabled with dedicated docs scope. */
-@SpringBootTest(properties = "springdoc.api-docs.enabled=true")
+@SpringBootTest(properties = {"springdoc.api-docs.enabled=true", "payment.simulation.enabled=true"})
 @AutoConfigureMockMvc
 @Testcontainers
 class PaymentOpenApiIT {
