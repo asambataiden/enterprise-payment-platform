@@ -53,7 +53,8 @@ class SimulationDisabledWebTest {
                         .header("Event-Id", UUID.randomUUID())
                         .contentType("application/json")
                         .content("{\"targetState\":\"AUTHORIZED\"}"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
         org.mockito.Mockito.verifyNoInteractions(transitions);
     }
 
