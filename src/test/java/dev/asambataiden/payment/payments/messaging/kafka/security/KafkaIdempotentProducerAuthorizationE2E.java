@@ -3,12 +3,10 @@ package dev.asambataiden.payment.payments.messaging.kafka.security;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.errors.ClusterAuthorizationException;
 import org.apache.kafka.common.errors.TopicAuthorizationException;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
@@ -17,8 +15,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * External secured broker: distinguish topic Write from cluster IdempotentWrite.
- * This checks authorization and client configuration; it does not simulate
+ * External secured broker: verify topic Write is sufficient for nontransactional idempotence.
+ * This checks modern Kafka topic authorization and client configuration; it does not simulate
  * dropped produce acknowledgements or establish end-to-end exactly-once effects.
  */
 @EnabledIfEnvironmentVariable(named = "PAYMENT_SECURE_KAFKA_TEST_ENABLED", matches = "true")
@@ -55,33 +53,35 @@ class KafkaIdempotentProducerAuthorizationE2E {
     }
 
     @Test
-    void idempotentProducerWithExplicitClusterGrantCanPublish() throws Exception {
-        try (var producer = new KafkaProducer<String, String>(settings(
-                "PAYMENT_SECURE_KAFKA_IDEMPOTENT_PRODUCER_KEYSTORE_LOCATION"))) {
-            var record = new ProducerRecord<>(STREAM, "idempotent-" + UUID.randomUUID(),
-                    "nonfinancial-idempotence-probe");
-            var metadata = producer.send(record).get(20, TimeUnit.SECONDS);
-            assertEquals(STREAM, metadata.topic());
-            assertTrue(metadata.offset() >= 0, "Broker must acknowledge persisted record");
-        }
-    }
-
-    @Test
-    void topicWriteAloneCannotAuthorizeIdempotentProducerId() {
+    void topicWriteOnlyIdentityCanPublishWithIdempotenceEnabled() throws Exception {
+        // Kafka >=2.8 (KIP-679): a nontransactional idempotent producer
+        // may initialize its producer ID when it has Write on a topic.
+        // The principal intentionally has NO cluster IdempotentWrite ACL.
         try (var producer = new KafkaProducer<String, String>(settings(
                 "PAYMENT_SECURE_KAFKA_PRODUCER_KEYSTORE_LOCATION"))) {
-            var failure = assertThrows(Exception.class,
-                    () -> producer.send(new ProducerRecord<>(
-                                    STREAM, "missing-idempotent-grant", "nonfinancial-denied-probe"))
-                            .get(20, TimeUnit.SECONDS));
-            assertHasCause(failure, ClusterAuthorizationException.class);
+            var metadata = producer.send(new ProducerRecord<>(STREAM,
+                    "topic-write-only-" + UUID.randomUUID(), "nonfinancial-idempotence-probe"))
+                    .get(20, TimeUnit.SECONDS);
+            assertEquals(STREAM, metadata.topic());
         }
     }
 
     @Test
-    void idempotentProducerWithClusterGrantStillCannotWriteOtherTopic() {
+    void describeOnlyIdentityCannotPublishEvenWithIdempotenceEnabled() {
         try (var producer = new KafkaProducer<String, String>(settings(
-                "PAYMENT_SECURE_KAFKA_IDEMPOTENT_PRODUCER_KEYSTORE_LOCATION"))) {
+                "PAYMENT_SECURE_KAFKA_KEYSTORE_LOCATION"))) {
+            var failure = assertThrows(Exception.class,
+                    () -> producer.send(new ProducerRecord<>(
+                                    STREAM, "reader-denied", "nonfinancial-denied-probe"))
+                            .get(20, TimeUnit.SECONDS));
+            assertHasCause(failure, TopicAuthorizationException.class);
+        }
+    }
+
+    @Test
+    void idempotentProducerCannotWriteUnauthorizedTopic() {
+        try (var producer = new KafkaProducer<String, String>(settings(
+                "PAYMENT_SECURE_KAFKA_PRODUCER_KEYSTORE_LOCATION"))) {
             var failure = assertThrows(Exception.class,
                     () -> producer.send(new ProducerRecord<>(
                                     DENIED, "wrong-topic", "nonfinancial-denied-probe"))
